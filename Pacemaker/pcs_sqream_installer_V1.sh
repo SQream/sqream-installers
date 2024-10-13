@@ -1,0 +1,1720 @@
+#!/bin/bash
+################################ Date  ##########################################################################################################
+today=$(date +"%Y-%m-%d-%s")
+################################ 
+############################################ Log File ###########################################################################################
+LOG_FILE="/tmp/pcs_sqream_installer_V1.log"
+logit() 
+{
+    echo "[`date`] - ${*}" >> ${LOG_FILE}    
+}
+##############################################################################################################################
+remove_old_files () { 
+logit "Started remove_old_files"
+sudo mkdir /etc/sqream_etc_backup_$today 
+sudo mv /etc/sqream/sqream*.conf /etc/sqream_etc_backup_$today/
+sudo mv /etc/sqream/sqream*.json /etc/sqream_etc_backup_$today/
+sudo chown -R sqream:sqream /etc/sqream_etc_backup_$today
+logit "Success remove_old_files"
+}
+##############################################################################################################################
+pcs_node_join () {
+logit "Started pcs_node_join"
+echo "Please Insert the New Node Hostname"
+read join_hostname
+logit "Join Hostname $join_hostname"
+echo "Please Insert the New Node IP Address"
+read join_ip
+logit "Join IP Address $join_ip"
+echo "Please Insert the New Node Number in the Cluster"
+read join_node
+logit "New Node Number $join_node"
+PCS=$(pcs --version | cut -d . -f2)
+if [ ${PCS} -eq 10 ]
+   then     
+   sudo pcs host auth $join_hostname addr=$join_ip
+   fi
+   if [ ${PCS} -eq 9 ]
+   then
+   echo "$join_hostname  $join_ip" | sudo tee -a  /etc/hosts
+   sudo pcs cluster auth $join_hostname     
+   fi
+sudo pcs cluster node add $join_hostname
+sudo pcs cluster enable $join_hostname
+sudo pcs cluster start $join_hostname
+sudo pcs constraint location PublicVIP prefers $join_hostname=90
+sudo pcs constraint location LB prefers $join_hostname=90
+sudo pcs constraint location MS prefers $join_hostname=90
+sudo pcs constraint location lb_group prefers $join_hostname=90
+number_of_workers=$(ls -dq /etc/sqream/*sqream*-service.conf | wc -l)
+node=$((join_node - 1))
+i=0
+current_worker_id=1
+while [ $i -lt $number_of_workers ]; do
+        echo "==>Creating SQream_${node}_${current_worker_id} resource"
+        sudo pcs resource create SQREAM_${node}_${current_worker_id} systemd:sqream${current_worker_id} \
+	      op start timeout=60s on-fail=restart \
+        op stop timeout=60s on-fail=ignore \
+        op monitor on-fail=restart interval=20s role=Started
+        sudo pcs constraint location SQREAM_${node}_${current_worker_id} prefers $join_hostname
+        sudo pcs constraint order start lb_group then start SQREAM_${node}_${current_worker_id}
+        ## Add Varibales X times##########################################################################
+        current_worker_id=$((current_worker_id + 1))
+        i=$((i + 1))
+        done
+logit "Success pcs_node_join"        
+}
+
+################################ pcs_add_workers ################################################################################################
+pcs_add_workers () {
+echo "#####################################################################################"
+echo "Please Enter Current Number of Workers"
+read current_worker_count_gpu_0
+echo "#####################################################################################"
+echo "How many workers to add on Master"
+read add_master_worker_count_gpu
+echo "#####################################################################################"
+echo "Please Enter Slave node Name"
+read slave_hostname
+echo "#####################################################################################"
+echo "How many workers to add on Slave"
+read add_slave_worker_count_gpu
+echo "#####################################################################################"
+##########################################################################################################
+current_worker_count_gpu=$((current_worker_count_gpu_0 +1))
+master_worker_count_gpu=$((current_worker_count_gpu_0 + add_master_worker_count_gpu))
+global_workers=$((master_worker_count_gpu + slave_worker_count_gpu))   
+  
+i=$current_worker_count_gpu_0
+    
+while [ $i -lt $master_worker_count_gpu ]; do
+#### Pacemaker X times ######################################################
+echo "==>Creating SQream_0_${current_worker_count_gpu} resource"
+sudo pcs resource create SQREAM_0_${current_worker_count_gpu} systemd:sqream${current_worker_count_gpu} \
+op start timeout=60s on-fail=restart \
+op stop timeout=60s on-fail=ignore \
+op monitor on-fail=restart interval=20s role=Started
+sudo pcs constraint location SQREAM_0_${current_worker_count_gpu} prefers $(hostname)
+###### Copy Template Files ###################################
+config_file="sqream${current_worker_count_gpu}_config.json"
+cp default_config.json "$config_file"
+config_service_file="sqream${current_worker_count_gpu}-service.conf"
+cp default_service.conf "$config_service_file"
+service_file="sqream${current_worker_count_gpu}.service"
+cp default.service "$service_file"
+#############################################################
+current_worker_count_gpu=$((current_worker_count_gpu + 1))
+i=$((i + 1))
+done
+############################################################################################################
+current_worker_count_gpu=$((current_worker_count_gpu_0 +1))
+slave_worker_count_gpu=$((current_worker_count_gpu_0 + add_slave_worker_count_gpu))
+i=$current_worker_count_gpu_0
+while [ $i -lt $slave_worker_count_gpu ]; do
+
+#### Pacemaker X times ######################################################
+echo "==>Creating SQream_1_${current_worker_count_gpu} resource"
+sudo pcs resource create SQREAM_1_${current_worker_count_gpu} systemd:sqream${current_worker_count_gpu} \
+op start timeout=60s on-fail=restart \
+op stop timeout=60s on-fail=ignore \
+op monitor on-fail=restart interval=20s role=Started
+sudo pcs constraint location SQREAM_1_${current_worker_count_gpu} prefers $slave_hostname
+current_worker_count_gpu=$((current_worker_count_gpu + 1))
+i=$((i + 1))
+done
+
+###########################################################################################################
+###########################################################################################################
+
+##############################################################################################################
+}
+################################ Remove Node From Cluster #######################################################################################
+pcs_remove_node () {
+echo "Please Insert Node Hostname to be Removed from Cluster"
+read remove_hostname
+sudo pcs cluster stop $remove_hostname
+sudo pcs cluster node remove $remove_hostname
+sudo pcs pcsd clear-auth $remove_hostname
+echo "Currently Cluster Node's $(sudo pcs cluster auth) "
+}
+################################ Join Node to Cluster ###########################################################################################
+pcs_metadata_join () {
+logit "Started pcs_metadata_join"
+echo "Please Insert the New Node Hostname"
+read join_hostname
+logit "Join Hostname $join_hostname"
+echo "Please Insert the New Node IP Address"
+read join_ip
+logit "Join IP $join_ip"
+PCS=$(pcs --version | cut -d . -f2)
+if [ ${PCS} -eq 10 ]
+   then     
+   sudo pcs host auth ${join_hostname} addr=${join_ip} 
+   sudo pcs cluster node add ${join_hostname}
+   fi
+   if [ ${PCS} -eq 9 ]
+   then
+   echo "$join_hostname  $join_ip" | sudo tee -a  /etc/hosts
+   sudo pcs cluster auth ${join_hostname}
+   sudo pcs cluster node add ${join_hostname}
+   fi
+sudo pcs cluster enable ${join_hostname}
+sudo pcs cluster start ${join_hostname}
+sudo pcs constraint location PublicVIP prefers $join_hostname=INFINITY
+sudo pcs constraint location LB prefers $join_hostname=INFINITY
+sudo pcs constraint location MS prefers $join_hostname=INFINITY
+sudo pcs constraint location lb_group prefers $join_hostname=INFINITY
+logit "Success pcs_metadata_join"
+}
+########################################### Check summary File #################################################################################
+check_summary () {
+summary=$summary
+ if [ -f $summary ];then
+sudo rm -f $summary
+fi
+}
+########################## check_if_sqreamdb_exist ##########################################################################################
+check_if_sqreamdb_exist () {
+logit "Started check_if_sqreamdb_exist"
+if [ ! -d /usr/local/sqream ];then
+echo "SQreamDB not found"
+logit "Error: /usr/local/sqream  > Not Exist"
+exit
+fi
+logit "Success: /usr/local/sqream  > Exist"
+}
+################# check_sqream_service_health ################################################################################################
+check_sqream_service_health () {
+logit "Started check_sqream_service_health"
+sqream=$(sudo systemctl is-active  sqream1.service)
+if [[ $sqream == active ]]; then
+clear
+echo "###############################################################################"
+echo "SQreamDB is running on this host, Please stop SQreamDB and start over."
+logit "Error: SQreamDB is running on this host, Please stop SQreamDB and start over."
+echo "###############################################################################"
+exit 
+fi
+logit "Success: check_sqream_service_health"
+}
+################# check_metadata_service_health ################################################################################################
+check_metadata_service_health () {
+logit "Started check_metadata_service_health"
+metadata=$(sudo systemctl is-active  metadataserver.service)
+if [[ $metadata == active ]]; then
+clear
+echo "###############################################################################"
+echo "SQreamDB is running on this host, Please stop SQreamDB and start over."
+logit "Error: SQreamDB is running on this host, Please stop SQreamDB and start over."
+echo "###############################################################################"
+exit 
+fi
+logit "Success: check_metadata_service_health"
+}
+
+############################################ summary ############################################################################################
+summary () {
+logit "Started: summary" 
+summary=/tmp/sqreamdb-summary.log
+num_gpus=$(nvidia-smi --query-gpu=name --format=csv,noheader | wc -l)
+workers_count=$(ls -dq /etc/sqream/*sqream*-service.conf | wc -l)
+spoolMemoryGB_count=$(cat /etc/sqream/sqream_config_legacy.json | grep '"spoolMemoryGB"' | sed -e 's/.*://' | sed -e 's/[" ]*//' | sed -e 's/["],$//'| sed -e 's/[, ]*$//' )
+         echo "################### summary ##############################" > $summary
+         echo "Number of GPUs $num_gpus" >> $summary
+         echo "Number of SQream workers: $workers_count" >> $summary
+         echo "SQream Storage Path: $cluster" >> $summary
+         echo "Choosen IP $machineip" >> $summary
+         echo "Choosen VIP $PublicVIP" >> $summary
+         echo "##########################################################" >> $summary
+        logit "################### summary ##############################"
+        logit "Number of GPUs $num_gpus"
+        logit "Number of SQream workers: $workers_count"
+        logit "SQream Storage Path: $cluster"
+        logit "Choosen IP $machineip"
+        logit "Choosen VIP $PublicVIP"
+        logit "##########################################################"  
+
+for i in $(seq 1 ${number_of_workers}); do
+config_file="/etc/sqream/sqream${i}_config.json"
+        
+        
+         echo "##########################################################" >> $summary
+        limitQueryMemoryGB_count=$(cat /etc/sqream/sqream${i}_config.json | grep '"limitQueryMemoryGB"' | sed -e 's/.*://' | sed -e 's/[" ]*//' | sed -e 's/["],$//'| sed -e 's/[, ]*$//' )
+        cudaMemQuota_count=$(cat /etc/sqream/sqream${i}_config.json | grep cudaMemQuota | sed -e 's/.*://' | sed -e 's/["],$//')
+        gpu_count=$(cat /etc/sqream/sqream${i}_config.json | grep gpu | sed -e 's/.*://' | sed -e 's/["],$//')
+         echo "SQream Worker: SQREAM$i" >> $summary
+         echo "GPU ID: $gpu_count" >> $summary
+         echo "CudaMemQuota: $cudaMemQuota_count" >> $summary
+         echo "SpoolMemory size: $spoolMemoryGB_count" >> $summary
+         echo "limitQueryMemoryGB: $limitQueryMemoryGB_count" >> $summary
+         echo "##########################################################" >> $summary
+        logit "##########################################################"
+        logit "SQream Worker: SQREAM$i"
+        logit "GPU ID: $gpu_count"
+        logit "CudaMemQuota: $cudaMemQuota_count"
+        logit "SpoolMemory size: $spoolMemoryGB_count"
+        logit "limitQueryMemoryGB: $limitQueryMemoryGB_count"
+        logit "##########################################################"
+done  
+logit "Success: summary"
+read -p "Do you want to view summary configuration ? (y/N) " yN
+case $yN in
+y)
+more $summary
+;;
+*) 
+;;
+esac
+}
+############################## Prepare_for_SQream ############################################################################################
+Prepare_for_SQream () {
+logit "Started Prepare_for_SQream "
+IS_CENTUS=$(echo ${SQ_OS_NAME} | grep CentOS | wc -l)
+
+if [ ${IS_CENTUS} -eq 1 ]
+   then
+        logit "Prepare SQream for RHEL 7"
+        sudo rpm -Uvh http://dl.fedoraproject.org/pub/epel/epel-release-latest-7.noarch.rpm
+        sudo yum install ntp pciutils monit zlib-devel openssl-devel kernel-devel-$(uname -r) kernel-headers-$(uname -r) gcc net-tools wget jq libffi-devel gdbm-devel tk-devel xz-devel sqlite-devel readline-devel bzip2-devel ncurses-devel zlib-devel -y
+        fi
+
+   if [ ${IS_CENTUS} -eq 0 ]
+   then
+    logit "Prepare SQream for RHEL 8"
+    sudo subscription-manager repos --enable codeready-builder-for-rhel-8-x86_64-rpms
+    sudo subscription-manager repos --enable rhel-8-for-x86_64-highavailability-rpms
+    sudo dnf install -y https://dl.fedoraproject.org/pub/epel/epel-release-latest-8.noarch.rpm
+    sudo dnf install chrony pciutils monit zlib-devel openssl-devel kernel-devel-$(uname -r) kernel-headers-$(uname -r) gcc net-tools wget jq libffi-devel xz-devel ncurses-compat-libs libnsl gdbm-devel tk-devel sqlite-devel readline-devel texinfo -y 
+
+   fi
+}
+############################## Prepare_PaceMaker ############################################################################################
+Prepare_PaceMaker () {
+LinuxDistro=$(cat /etc/os-release |grep VERSION_ID |cut -d "=" -f2)
+
+if [[ $(echo $LinuxDistro|grep '7.') ]]
+   then
+        logit "Prepare PCS for RHEL 7"
+        sudo yum -y install corosync pacemaker pcs fence-agents-all
+        sudo systemctl disable corosync.service
+        sudo systemctl start pcsd.service
+        sudo systemctl enable pcsd.service
+        fi
+
+   if [[ $(echo $LinuxDistro|grep '8.') ]]
+   then
+   logit "Prepare PCS for RHEL 8"
+    sudo subscription-manager repos --enable rhel-8-for-x86_64-highavailability-rpms
+    sudo dnf install -y https://dl.fedoraproject.org/pub/epel/epel-release-latest-8.noarch.rpm
+    sudo yum -y install corosync pacemaker pcs fence-agents-all
+    sudo systemctl disable corosync.service
+    sudo systemctl start pcsd.service
+    sudo systemctl enable pcsd.service
+   fi
+}
+############################################ etc backup #########################################################################################
+etc_backup () {
+logit "Started etc_backup"
+if
+[ -d /etc/sqream ];then
+sudo cp -r /etc/sqream /etc/sqream_etc_backup_$today
+logit "Success: /etc/sqream >  backup to sqream_etc_backup_$today"
+fi
+}
+############################################ run_with_sudo ######################################################################################
+run_with_sudo () {
+        if ! [ $(id -u) = 0 ]; then
+   echo "Please run This script with sudo." >&2
+   logit "Error: run_with_sudo - Please run This script with sudo."
+   exit 1
+fi
+logit "Success: run_with_sudo"
+}
+########################################### Check Log File #####################################################################################
+check_logfile () {
+if [ -f $LOG_FILE ];then
+sudo rm -f $LOG_FILE
+
+fi
+}
+####################### Fix Folders and Files Permissions #######################################################################################
+check_permissions_and_folders()
+{
+logit "Started check_permissions_and_folders"
+SQVER=$(echo "${TARFILE}"| sed "s/.*\///" | awk -F'[/.]' '{print $1 "." $2 "." $3 }')
+#SQVER=$(echo "${SQ}" | cut -c7-13)
+clear
+if [ -f /etc/sqream/sqream-admin-config.json ]
+then 
+cp /etc/sqream/sqream-admin-config.json .
+logit "Success: backup of sqream-admin-config.json"
+fi
+if [ -f  /etc/sqream/license.enc ] 
+then
+cp /etc/sqream/license.enc .
+logit "Success: backup of license.enc"
+fi
+if
+[ -d /etc/sqream ];then
+sudo mv /etc/sqream /etc/sqream_etc_backup_$today
+logit "Success: backup old /etc/sqream to sqream_etc_backup_$today"
+fi
+if
+[ -L /usr/local/sqream ];then
+sudo rm -f  /usr/local/sqream
+logit "Success: remove SQream old Link" 
+fi
+if
+SQVER=$(echo "${TARFILE}"| sed "s/.*\///" | awk -F'[/.]' '{print $1 "." $2 "." $3 }')
+[ -d /usr/local/${SQVER} ];then
+sudo mv  /usr/local/${SQVER} /usr/local/sqream_${today}
+logit "Success: moving /usr/local/$SQVER to /usr/local/sqream_$today"
+fi
+sudo mkdir -p /etc/sqream
+sudo chown -R sqream:sqream /etc/sqream
+sudo mv license.enc /etc/sqream &> /dev/null
+sudo mv sqream-admin-config.json /etc/sqream &> /dev/null
+sudo mkdir -p /var/log/sqream
+sudo chown -R sqream:sqream /var/log/sqream
+logit "Success: check_permissions_and_folders"
+}
+
+################################ custom_limitQuery #############################################################################################
+custom_limitQuery () {
+logit "Started custom_limitQuery"
+RAM_KB=$(grep MemTotal /proc/meminfo | awk '{print $2}')
+RAM_MB=$(expr $RAM_KB / 1024)
+RAM_GB=$(expr $RAM_MB / 1024)
+global_limitQueryMemoryGB=$((RAM_GB * 90 / 100 ))
+number_of_workers=$(ls -dq /etc/sqream/*sqream*-service.conf | wc -l)
+limitQueryMemoryGB=$((global_limitQueryMemoryGB / number_of_workers))
+spoolMemoryGB=$(($limitQueryMemoryGB * 80 / 100 ))
+cudaMemQuota=$(cat /etc/sqream/sqream${i}_config.json | grep cudaMemQuota)
+for i in $(seq 1 ${number_of_workers}); do
+config_file="/etc/sqream/sqream${i}_config.json"
+sed -i "s/\"limitQueryMemoryGB\": limitQueryMemoryGB,/\"limitQueryMemoryGB\": $new_limitQueryMemoryGB,/" "$config_file"
+
+done
+logit "Success:  custom_limitQuery"
+install_legacy
+}
+
+################################ Function to Create SQream Legacy Conf File #####################################################################
+install_legacy()
+{
+logit "Started install_legacy"
+cat <<EOF | tee /etc/sqream/sqream_config_legacy.json > /dev/null
+{
+"diskSpaceMinFreePercent": 1,
+    "DefaultPathToLogs": "${cluster}/tmp_logs/",
+    "enableLogDebug": false,
+    "insertCompressors": 8,
+    "insertParsers": 8,
+    "isUnavailableNode": false,
+    "logBlackList": "webui",
+    "logDebugLevel": 6,
+    "nodeInfoLoggingSec": 60,
+    "useClientLog": true,
+    "useMetadataServer": true,
+    "spoolMemoryGB": $spoolMemoryGB,
+    "waitForClientSeconds": 18000
+}
+EOF
+logit "Success: install_legacy"
+}
+###################### check_pacemaker_service_health ###########################################################################################
+check_pacemaker_service_health () {
+logit "Started check_pacemaker_service_health"
+if ! rpm -qa | grep pcs &> /dev/null
+then
+clear
+echo "###############################################################################"
+echo "Pacemaker is not installed, Please install Pacemaker and start over."
+logit "Error: Pacemaker is not installed, Please install Pacemaker and start over."
+echo "###############################################################################"
+exit
+fi
+logit "Success: check_pacemaker_service_health"
+}
+###################################### install_sqream_serverpicker_service ######################################################################
+install_sqream_serverpicker_service() {
+logit "Started install_sqream_serverpicker_service"
+echo '[Unit]
+Description=Server Picker - Load Balancer For SQreamDB
+Documentation=http://docs.sqream.com/latest/manual/
+
+[Service]
+Type=simple
+EnvironmentFile=/etc/sqream/server_picker.conf
+
+ExecStart=/bin/su - $RUN_USER -c "exec ${DIR}/bin/server_picker ${IP} ${PORT} &>> ${LOGFILE}"
+ExecStartPost=/bin/sh -c "sleep 1; pidof server_picker > /var/run/${SERVICE_NAME}.pid"
+ExecStop=/bin/sh -c "/bin/kill -9 `cat /var/run/${SERVICE_NAME}.pid`"
+ExecStopPost=/bin/rm -f /var/run/${SERVICE_NAME}.pid
+ExecReload=/bin/sh -c "/bin/kill -HUP `cat /var/run/${SERVICE_NAME}.pid`"
+
+KillMode=process
+TimeoutSec=30s
+
+[Install]
+WantedBy=multi-user.target
+' > serverpicker.service
+logit "Success: install_sqream_serverpicker_service"
+}
+###################################### install_sqream_serverpicker #############################################################################
+install_sqream_serverpicker()
+{
+logit "Started install_sqream_serverpicker"
+cat <<EOF | tee server_picker.conf > /dev/null
+SERVICE_NAME=serverpicker
+RUN_USER=sqream
+DIR=/usr/local/sqream
+IP=${PublicVIP}
+PORT=3105
+LOGFILE=/var/log/sqream/serverpicker.log
+EOF
+logit "Success: install_sqream_serverpicker"
+}
+###################################### Copy All Created Config files and Services only for Metadata ############################################
+meta_copy_files() {
+  logit "Started metadata_copy_files"
+sudo mkdir -p /etc/sqream
+sudo mv metadataserver.conf /etc/sqream
+sudo mv metadataserver.service /etc/sqream
+sudo mv metadataserver_config.json /etc/sqream 
+sudo mv  server_picker* /etc/sqream
+sudo mv  serverpicker* /etc/sqream
+sudo mv /etc/sqream/metadataserver.service /usr/lib/systemd/system/
+sudo mv /etc/sqream/serverpicker.service /usr/lib/systemd/system/
+sudo cp /usr/local/sqream/etc/sqream_env.sh /etc/sqream
+sudo cp /usr/local/sqream/etc/server_picker_log_properties /etc/sqream
+sudo cp /usr/local/sqream/etc/metadata_log_properties /etc/sqream
+sudo cp /usr/local/sqream/etc/sqreamd_log_properties /etc/sqream
+sudo cp /usr/local/sqream/etc/sqreamCLOUD_config.json /etc/sqream
+sudo cp /usr/local/sqream/etc/flags* /etc/sqream
+sudo chown -R sqream:sqream /usr/local/sqream
+sudo chown -R sqream:sqream /etc/sqream
+sudo systemctl daemon-reload
+logit "Success: metadata_copy_files"
+}
+
+###################################### Copy All Created Config files and Services to  SQream Folders ###########################################
+copy_files() {
+logit "Started copy_files"
+sudo mkdir -p /etc/sqream
+sudo mv metadataserver.conf /etc/sqream
+sudo mv metadataserver.service /etc/sqream
+sudo mv metadataserver_config.json /etc/sqream
+sudo mv sqream*.service /etc/sqream/
+sudo mv sqream*-service.conf /etc/sqream/
+sudo mv sqream*_config.json /etc/sqream/
+sudo mv default* /etc/sqream
+sudo mv  server_picker* /etc/sqream
+sudo mv  serverpicker* /etc/sqream
+sudo mv /etc/sqream/metadataserver.service /usr/lib/systemd/system/
+sudo mv /etc/sqream/serverpicker.service /usr/lib/systemd/system/
+sudo mv /etc/sqream/sqream*.service /usr/lib/systemd/system/
+sudo cp /usr/local/sqream/etc/sqream_env.sh /etc/sqream
+sudo cp /usr/local/sqream/etc/server_picker_log_properties /etc/sqream
+sudo cp /usr/local/sqream/etc/metadata_log_properties /etc/sqream
+sudo cp /usr/local/sqream/etc/sqreamd_log_properties /etc/sqream
+sudo cp /usr/local/sqream/etc/sqreamCLOUD_config.json /etc/sqream
+sudo cp /usr/local/sqream/etc/flags* /etc/sqream
+sudo chown -R sqream:sqream /usr/local/sqream
+sudo chown -R sqream:sqream /etc/sqream
+sudo systemctl daemon-reload
+logit "Success: copy_files"
+}
+############################ Check if TAR file Exist ##############################################################################################
+check_tar_file()
+{
+  logit "Started check_tar_file"
+  if [ -z $TARFILE ]
+  then
+     echo "ERROR: no archieve file was specified, exiting..."
+     logit "ERROR: no archieve file was specified, exiting..."
+     exit -1
+  fi
+  if [ ! -e "$TARFILE" ]
+  then
+     echo "ERROR: archeive file '$TARFILE' is NOT accessible, exiting..."
+     logit "ERROR: archeive file '$TARFILE' is NOT accessible, exiting..."
+     exit -1
+  fi
+  logit "Success: check TAR file"
+}
+##################################### verify_and_extract #######################################################################################
+verify_and_extract()
+{
+logit "Started verify_and_extract"
+clear
+echo "#####################################################################################"
+echo "Starting SQreamDB installation Please wait While Extracting TAR file"
+echo "#####################################################################################"
+if
+[ -d /tmp/sqreampkg ];then
+rm -rf /tmp/sqreampkg > /dev/null
+mkdir -p /tmp/sqreampkg > /dev/null
+tar -C /tmp/sqreampkg/ -zxf $TARFILE --checkpoint=.1000
+echo " Done, Continue with Installation "
+logit "Success: /tmp/sqreampkg  deleted, Continue with Installation "
+else
+mkdir -p /tmp/sqreampkg > /dev/null
+logit "Success: /tmp/sqreampkg created"
+tar -C /tmp/sqreampkg/ -zxf $TARFILE --checkpoint=.1000
+echo "#####################################################################################"
+echo " Done, Continue with Installation "
+echo "#####################################################################################"
+fi
+logit "Success: verify_and_extract"
+}
+########################### Make SQream Symbolic Links ########################################################################################
+make_symlink()
+{
+logit "Started make_symlink"
+sudo ln -s /usr/local/${SQVER} /usr/local/sqream
+sudo chown -R sqream:sqream /usr/local/sqream
+sudo chown -R sqream:sqream /var/log/sqream
+sudo chown -R sqream:sqream /usr/local/sqream/
+logit "Success: make_symlink"
+}
+################################ Function Config METADATA SERVER Service File ###################################################################
+install_metadata_service()
+{
+logit "Started install_metadata_service"
+echo '[Unit]
+Description=Metadata Server For SQreamDB
+Documentation=http://docs.sqream.com/latest/manual/
+
+[Service]
+Type=simple
+EnvironmentFile=/etc/sqream/metadataserver.conf
+
+ExecStart=/bin/su - $RUN_USER -c "/bin/nohup ${DIR}/bin/metadata_server --config /etc/sqream/${SERVICE_NAME}\_config.json --log_path ${METADATALOG} --num_deleters ${DELETERS}  &>> ${LOGFILE}/${SERVICE_NAME}.log"
+ExecStartPost=/bin/sh -c "sleep 1; pidof metadata_server > /var/run/${SERVICE_NAME}.pid"
+ExecStop=/bin/sh -c "kill -9 `cat /var/run/${SERVICE_NAME}.pid`"
+ExecStopPost=/bin/rm -f /var/run/${SERVICE_NAME}.pid
+ExecReload=/bin/sh -c "/bin/kill -HUP `cat /var/run/${SERVICE_NAME}.pid`"
+
+KillMode=process
+TimeoutSec=30s
+
+[Install]
+WantedBy=multi-user.target
+' > metadataserver.service
+logit "Success: install_metadata_service"
+}
+############################## Function Config SQream METADATASERVER_config.json  Conf File #####################################################
+install_metadata_config_json () {
+logit "Started install_metadata_config_json"
+echo '      {
+          "metadataStandAlone": false
+      }
+' > metadataserver_config.json
+logit "Success: install_metadata_config_json"
+}
+############################# limitQuery #####################################################################################################
+limitQuery () {
+logit "Started limitQuery"
+if [[ $new_limitQueryMemoryGB -ge 1 ]];then
+logit "Success : limitQuery check"
+custom_limitQuery
+else
+logit "Success : limitQuery check"
+default_limitQuery
+fi
+}
+
+################################ default_limitQuery ###########################################################################################
+default_limitQuery () {
+logit "Started:  default_limitQuery"
+RAM_KB=$(grep MemTotal /proc/meminfo | awk '{print $2}')
+RAM_MB=$(expr $RAM_KB / 1024)
+GRAM_GB=$(expr $RAM_MB / 1024)
+if [ $GRAM_GB -ge 512 ] ;then
+RAM_GB=$(expr $GRAM_GB - 50)
+else
+RAM_GB=$(expr $RAM_MB / 1024)
+fi
+global_limitQueryMemoryGB=$((RAM_GB * 90 / 100 ))
+number_of_workers=$(ls -dq /etc/sqream/*sqream*-service.conf | wc -l)
+limitQueryMemoryGB=$((global_limitQueryMemoryGB / number_of_workers))
+spoolMemoryGB=$(($limitQueryMemoryGB * 80 / 100 ))
+#cudaMemQuota=$(cat /etc/sqream/sqream${i}_config.json | grep cudaMemQuota)
+for i in $(seq 1 ${number_of_workers}); do
+config_file="/etc/sqream/sqream${i}_config.json"
+sed -i "s/\"limitQueryMemoryGB\": limitQueryMemoryGB,/\"limitQueryMemoryGB\": $limitQueryMemoryGB,/" "$config_file"
+done
+logit "Success:  default_limitQuery"
+install_legacy
+}
+############################# Function install_metadata metadataserver.conf #####################################################################
+install_metadata() {
+logit "Started install_metadata"
+cat <<EOF | tee metadataserver.conf > /dev/null
+SERVICE_NAME=metadataserver
+RUN_USER=sqream
+DIR=/usr/local/sqream
+LOGFILE=/var/log/sqream
+LOG4=/etc/sqream/metadata_log_properties
+METADATALOG=${cluster}/metadata_logs
+DELETERS=1
+EOF
+logit "Success: install_metadata"
+}
+################################ Function create_config_template_file ############################################################################
+create_config_template_file() {
+logit "Started create_config_template_file"
+cat <<EOF | tee default_config.json > /dev/null
+{
+    "cluster": "$cluster",
+    "cudaMemQuota": 90,
+    "gpu": 0,
+    "legacyConfigFilePath": "sqream_config_legacy.json",
+    "licensePath": "/etc/sqream/license.enc",
+    "limitQueryMemoryGB": limitQueryMemoryGB,
+    "machineIP": "$machineip",
+    "metadataServerIp": "$PublicVIP",
+    "metadataServerPort": 3105,
+    "port": @regular_port@,
+    "instanceId": "@sqream_00@",
+    "portSsl": @sslport@,
+    "initialSubscribedServices": "sqream",
+    "useConfigIP": true
+}
+EOF
+logit "Success: create_config_template_file"
+}
+###################################### Function to generate and update config files Pacemaker #############################################
+generate_config_files_pcs() {
+logit "Started generate_config_files_pcs"
+    gpu_id=$1
+    #worker_count=$2
+    i=0
+    #DefaultPathToLogs=$cluster/tmp_logs
+        sport=5099
+        port=4999
+        while [ $i -lt $worker_count_gpu ]; do
+        ##################################################################################################
+        # Copy template files ############################################################################
+        ##################################################################################################
+        config_file="sqream${current_worker_id}_config.json"
+        cp default_config.json "$config_file"
+        config_service_file="sqream${current_worker_id}-service.conf"
+	      cp default_service.conf "$config_service_file"
+        service_file="sqream${current_worker_id}.service"
+        cp default.service "$service_file"
+        ##################################################################################################
+        # Update "gpu" and "cudaMemQuota" in the config file #############################################
+        ##################################################################################################
+        sed -i "s/\"gpu\": 0,/\"gpu\": $gpu_id,/" "$config_file"
+        sed -i "s/\"cudaMemQuota\": 90,/\"cudaMemQuota\": $new_cuda,/" "$config_file"
+        sed -i "s|@regular_port@|$((port + ${current_worker_id} ))|g" "$config_file"
+        sed -i "s|@sslport@|$((sport + ${current_worker_id} ))|g" "$config_file"
+        sed -i "s|@sqream_00@|sqream_${node}_${current_worker_id}|g" "$config_file"
+        sed -i "s/\SERVICE_NAME\=sqream/\SERVICE_NAME\=sqream$current_worker_id/" "$config_service_file"
+        sed -i "s|@sqream@|sqream${current_worker_id}.log|g" "$config_service_file"
+        sed -i "s|@sqreamX-service.conf@|sqream${current_worker_id}-service.conf|g" "$service_file"
+
+        ######################### Pacemaker X times ######################################################
+        echo "==>Creating SQream_0_${current_worker_id} resource"
+        sudo pcs resource create SQREAM_0_${current_worker_id} systemd:sqream${current_worker_id} \
+	      op start timeout=60s on-fail=restart \
+        op stop timeout=60s on-fail=ignore \
+        op monitor on-fail=restart interval=20s role=Started
+        sudo pcs constraint location SQREAM_0_${current_worker_id} prefers $(hostname)
+        sudo pcs constraint order start lb_group then start SQREAM_0_${current_worker_id}
+        ## Add Varibales X times##########################################################################
+        ######################## Pacemaker X times ######################################################
+        current_worker_id=$((current_worker_id + 1))
+        i=$((i + 1))
+        done
+        ######################### Pacemaker X times ######################################################
+        i=0
+        current_worker_id=1
+        while [ $i -lt $worker_count_gpu ]; do
+        echo "==>Creating SQream_1_${current_worker_id} resource"
+        sudo pcs resource create SQREAM_1_${current_worker_id} systemd:sqream${current_worker_id} \
+	      op start timeout=60s on-fail=restart \
+        op stop timeout=60s on-fail=ignore \
+        op monitor on-fail=restart interval=20s role=Started
+        sudo pcs constraint location SQREAM_1_${current_worker_id} prefers $slave_hostname
+        sudo pcs constraint order start lb_group then start SQREAM_1_${current_worker_id}
+        ## Add Varibales X times##########################################################################
+        current_worker_id=$((current_worker_id + 1))
+        i=$((i + 1))
+        done
+        logit "Success: generate_config_files_pcs"
+
+        install_metadata
+        #################################################################################################
+
+}
+###################################### Function install_sqream_services #########################################################################
+install_sqream_services()
+{
+logit "Started install_sqream_services"
+echo '[Unit]
+After=serverpicker.service
+Description=SQream SQL Server
+Documentation=http://docs.sqream.com/latest/manual/
+
+[Service]
+Type=simple
+EnvironmentFile=/etc/sqream/@sqreamX-service.conf@
+
+ExecStart=/bin/su - $RUN_USER -c "source /etc/sqream/sqream_env.sh && exec ${DIR}/bin/sqreamd -config /etc/sqream/${SERVICE_NAME}\_config.json &>> ${LOGFILE}"
+ExecStartPost=/bin/sh -c "sleep 2; /bin/ps --ppid ${MAINPID} -o pid= > /var/run/${SERVICE_NAME}.pid"
+ExecStop=/bin/sh -c "/bin/kill -9 `cat /var/run/${SERVICE_NAME}.pid`"
+ExecStopPost=/bin/rm -f /var/run/${SERVICE_NAME}.pid
+ExecReload=/bin/sh -c "/bin/kill -s -HUP `cat /var/run/${SERVICE_NAME}.pid`"
+
+KillMode=process
+TimeoutSec=30s
+
+[Install]
+WantedBy=multi-user.target
+' > default.service
+logit "Success: install_sqream_services"
+}
+###################################### create_service_config_template_file #########################################################################
+create_service_config_template_file() {
+logit "Started create_service_config_template_file"
+echo 'SERVICE_NAME=sqream
+RUN_USER=sqream
+DIR=/usr/local/sqream
+BINDIR=/usr/local/sqream/bin/
+LOGFILE=/var/log/sqream/@sqream@
+' > default_service.conf
+logit "Success: create_service_config_template_file"
+}
+############################## Check Storage ###################################################################################################
+check_storage () {
+logit "Started check_storage"
+clear
+if [ -d "$cluster" ];then
+      logit "Storage exist "
+      echo "Storage exist"
+echo "____________________________________________________________"
+echo "------------------------------------------------------------"
+echo "==> SQream Storage exist in" ${cluster}
+echo "____________________________________________________________"
+echo "------------------------------------------------------------"
+      logit "Success: check_storage"
+      else
+logit "Storage not exist"
+logit "Cannot resume SQreamDB installation"
+echo "Storage not exist"
+echo "Cannot resume SQreamDB installation"
+echo "____________________________________________________________"
+exit
+logit "Success: check_storage"
+fi
+}
+############################## Create Storage ###################################################################################################
+create_storage () {
+logit "Started create_storage"
+clear
+if [ -d "$cluster" ];then
+      logit "Please wait Upgrading existing Storage"
+      echo "Please wait Upgrading existing Storage"
+      /usr/local/sqream/bin/upgrade_storage ${cluster} > /dev/null 2&>1
+      sudo systemctl daemon-reload
+      logit "Success: create_storage"
+      else
+
+logit "Please wait Creating Storage"
+echo "Please wait Creating Storage"
+/usr/local/sqream/bin/SqreamStorage -Cr ${cluster} > /dev/null 2&>1
+echo "____________________________________________________________"
+echo "------------------------------------------------------------"
+echo "==> SQream Storage Created in" ${cluster}
+echo "____________________________________________________________"
+echo "------------------------------------------------------------"
+logit "Success: create_storage"
+sudo chown -R sqream:sqream ${cluster}
+sudo systemctl daemon-reload
+fi
+
+}
+###################### Pacemaker ##################################################################################################################
+pacemaker () {
+logit "Started: function pacemaker"
+echo "You Have Choose Pacemaker, Please insert hacluster user and password when ask"
+PCS=$(pcs --version | cut -d . -f2)
+sudo pcs cluster destroy --all &> /dev/null
+if [ ${PCS} -eq 10 ]
+   then     
+   sudo pcs host auth $(hostname) addr=${machineip} ${slave_hostname} addr=${slaveip}
+   sudo pcs cluster setup sqreamdb $(hostname) addr=$machineip $slave_hostname addr=$slaveip
+   fi
+   if [ ${PCS} -eq 9 ]
+   then
+   echo "$machineip  $(hostname)" | sudo tee -a  /etc/hosts
+   echo "$slaveip  $slave_hostname" | sudo tee -a  /etc/hosts
+   sudo pcs cluster auth $(hostname)  $slave_hostname 
+   #sudo pcs cluster sync
+   sudo pcs cluster setup --name sqreamdb $(hostname) $slave_hostname --force
+   fi
+#sudo pcs cluster destroy --all &> /dev/null
+sudo pcs cluster enable --all
+sudo pcs cluster start --all
+sudo pcs property set stonith-enabled=false
+sudo pcs property set no-quorum-policy=ignore
+sudo pcs property set symmetric-cluster=false
+sudo pcs property set start-failure-is-fatal=false
+echo "==>Creating PublicVIP resource"
+sudo pcs resource create PublicVIP ocf:heartbeat:IPaddr2 ip=$PublicVIP \
+    cidr_netmask=$netmask op monitor interval=20s
+sudo pcs constraint location PublicVIP prefers $(hostname)=90
+sudo pcs constraint location PublicVIP prefers $slave_hostname=90
+echo "==>Creating LB resource"
+sudo pcs resource create LB systemd:serverpicker \
+op start timeout=30s on-fail=restart \
+op stop timeout=30s on-fail=ignore \
+op monitor on-fail=restart interval=20s role=Started
+sudo pcs constraint location LB prefers $(hostname)=90
+sudo pcs constraint location LB prefers $slave_hostname=90
+echo "==>Creating MS resource"
+sudo pcs resource create MS systemd:metadataserver \
+    op start timeout=30s on-fail=restart \
+    op stop timeout=30s on-fail=ignore \
+    op monitor on-fail=restart interval=20s role=Started
+sudo pcs constraint location MS prefers $(hostname)=90
+sudo pcs constraint location MS prefers $slave_hostname=90
+sudo pcs resource group add lb_group PublicVIP MS LB
+sudo pcs constraint location lb_group prefers $(hostname)=90
+sudo pcs constraint location lb_group prefers $slave_hostname=90
+logit "Success: function pacemaker"
+}
+###################### Pacemaker_no_meta ###########################################################################################################
+pacemaker_no_meta () {
+logit "Started: pacemaker_no_meta"
+echo "You Have Choose Pacemaker, Please insert hacluster user and password when ask"
+sudo pcs cluster destroy
+sudo pcs host auth $(hostname)
+sudo pcs cluster setup sqreamdb $(hostname)
+sudo pcs cluster start
+sudo pcs property set stonith-enabled=false
+sudo pcs property set no-quorum-policy=ignore
+sudo pcs property set start-failure-is-fatal=false
+logit "Success: pacemaker_no_meta"
+}
+
+########################## limitQuery no meta ###############################################################################################
+limitQuery_no_meta () {
+RAM_KB=$(grep MemTotal /proc/meminfo | awk '{print $2}')
+RAM_MB=$(expr $RAM_KB / 1024)
+GRAM_GB=$(expr $RAM_MB / 1024)
+if [ $GRAM_GB -ge 512 ] ;then
+RAM_GB=$(expr $GRAM_GB - 50)
+else
+RAM_GB=$(expr $RAM_MB / 1024)
+fi
+global_limitQueryMemoryGB=$((RAM_GB * 95 / 100 ))
+number_of_workers=$(ls -dq /etc/sqream/*sqream*-service.conf | wc -l)
+limitQueryMemoryGB=$((global_limitQueryMemoryGB / number_of_workers))
+spoolMemoryGB=$(($limitQueryMemoryGB * 80 / 100 ))
+cudaMemQuota=$(cat /etc/sqream/sqream${i}_config.json | grep cudaMemQuota)
+for i in $(seq 1 ${number_of_workers}); do
+config_file="/etc/sqream/sqream${i}_config.json"
+sed -i "s/\"limitQueryMemoryGB\": limitQueryMemoryGB,/\"limitQueryMemoryGB\": $limitQueryMemoryGB,/" "$config_file"
+done
+logit "Success:  default_limitQuery"
+install_legacy
+}
+
+###################################Check Permission sqream:sqream on Cluster ###################################################################
+permission_sqream () {
+logit "Started permission_sqream"
+permission=$(stat -c  %G:%U $cluster)
+if [[ $permission == sqream:sqream ]]; then
+  echo "Cluster Permission is OK"
+  logit "Success: permission_sqream > Cluster Permission is OK"
+  else
+          echo "Please fix Cluster permission to sqream:sqream"
+          logit "Error: Please fix Cluster permission to sqream:sqream"
+fi
+logit "Success: permission_sqream"
+}
+#################### formula_advance ############################################################################################################
+formula_advance () {
+logit "Started: formula_advance"
+num_gpus=$(nvidia-smi --query-gpu=name --format=csv,noheader | wc -l)
+echo "##########################################################################################################################################"
+echo "Number of GPUs: $num_gpus"
+i=0
+while [ $i -lt $num_gpus ]; do
+echo "##########################################################################################################################################"
+echo "Total GPU Memory per GPU Card ID"
+echo "GPU $i: $(nvidia-smi --query-gpu=memory.total --format=csv,noheader,nounits -i $i) MB"
+echo "##########################################################################################################################################"
+    i=$((i + 1))
+done
+current_worker_id=1
+gpu_id=0
+while [ $gpu_id -lt $num_gpus ]; do 
+echo "Enter the number of workers you want to run on GPU $gpu_id: "
+read worker_count_gpu
+echo "##########################################################################################################################################"
+while [ -z "$worker_count_gpu" ]
+do	printf "Enter the number of workers you want to run on GPU $gpu_id: "
+	read -r worker_count_gpu
+	[ -z "$worker_count_gpu" ] && echo 'worker_count_gpu cannot be empty; try again.'
+done
+
+read -p "Do You want to customize cudaMemQuota ? (y/N) " yN
+echo "##########################################################################################################################################"
+case $yN in
+y ) 
+echo "Enter the desired cudaMemQuota value "
+read new_cuda
+echo "##########################################################################################################################################"
+ ;;
+* ) 
+echo "##########################################################################################################################################"
+echo "Using Default Value ( 96% / worker_count ) "
+new_cuda=$((94 / $worker_count_gpu))
+echo "##########################################################################################################################################"
+;;
+esac
+      
+    create_config_template_file
+    generate_config_files "$gpu_id" "$worker_count_gpu"
+    gpu_id=$((gpu_id + 1))
+done
+logit "Success: formula_advance"
+}
+########################################### advance_reconfiguration_pcs ########################################################################
+advance_reconfiguration_pcs () {
+logit "Started: advance_reconfiguration_pcs"
+clear
+current_ip=$(cat /etc/sqream/sqream1_config.json | grep 'machineIP' | sed -e 's/.*://' | sed -e 's/[" ]*//' | sed -e 's/["],$//')
+clear
+echo "##########################################################################################################################################"
+echo "Welcome to SQream Advance Reconfiguration"
+echo "##########################################################################################################################################"
+echo "Your Current IP address is $current_ip"
+echo "##########################################################################################################################################"
+read -p "Do you want to change current IP ? (y/N) " yN
+echo "##########################################################################################################################################"
+case $yN in
+        y )
+hostip=$(hostname -I)
+echo "Please Enter Current Host IP Address, Select from below IP addresses list"
+echo "$hostip"
+echo "Or use 127.0.0.1 as local host"
+echo "##########################################################################################################################################"
+read machineip
+while [ -z "$machineip" ]
+do	printf 'Please Enter Current Host IP Address: '
+	read -r machineip
+	[ -z "$machineip" ] && echo 'MachineIP cannot be empty; try again.'
+done
+logit "Success: Current Host IP Address $machineip"
+;;
+        * )
+echo "Stay with Current IP address is $current_ip"
+echo "##########################################################################################################################################"
+machineip=$current_ip
+netmask=$(ip -o -f inet addr show | awk '/scope global/ {print $4}' | grep $machineip | cut -c14-16 | grep -Eo "[0-9]+")
+logit "Success: Stay with Current IP address is $current_ip"
+;;
+esac
+node=0
+echo "##########################################################################################################################################"
+echo "Please enter VIP ip address"
+read PublicVIP
+logit "PublicVIP is $PublicVIP "
+while [ -z "$PublicVIP" ]
+do	printf 'Please enter VIP ip address: '
+	read -r PublicVIP
+	[ -z "$PublicVIP" ] && echo 'VIP ip address cannot be empty; try again.'
+done
+PCS=$(pcs --version | cut -d . -f2)
+#if [ ${PCS} -eq 9 ]
+#   then
+echo "##########################################################################################################################################"
+echo "Please enter Slave Node Name"
+read slave_hostname
+logit "Slave Hostname is $slave_hostname"
+echo "##########################################################################################################################################"
+echo "Please enter Slave Node IP address"
+read slaveip
+logit "Slave Node IP is $slaveip"
+echo "##########################################################################################################################################"
+echo "$slave_ip  $slave_name" | sudo tee -a  /etc/hosts
+#fi
+logit "Success: This Server will be connected to VIP $PublicVIP"
+
+echo "##########################################################################################################################################"
+cluster=$(cat /etc/sqream/sqream1_config.json | grep 'cluster' | sed -e 's/.*://' | sed -e 's/[" ]*//' | sed -e 's/["],$//')
+echo "Your Current Storage is $cluster"
+echo "##########################################################################################################################################"
+logit "Success: SQream Storage Path change to $cluster" 
+logit "Success: advance_reconfiguration_pcs"
+#permission_sqream
+install_sqream_serverpicker_service
+install_sqream_serverpicker
+create_service_config_template_file
+install_sqream_services
+pacemaker
+formula_advance_pcs
+remove_old_files
+copy_files
+limitQuery
+}
+#################################### advance_reconfiguration ####################################################################################
+advance_reconfiguration () {
+logit "Started: advance_reconfiguration"
+current_ip=$(cat /etc/sqream/sqream1_config.json | grep 'machineIP' | sed -e 's/.*://' | sed -e 's/[" ]*//' | sed -e 's/["],$//')
+clear
+echo "##########################################################################################################################################"
+echo "Welcome to SQream Advance Reconfiguration"
+echo "##########################################################################################################################################"
+echo "Your Current IP address is $current_ip"
+logit "Success: Your Current IP address is $current_ip"
+echo "##########################################################################################################################################"
+read -p "Do you want to change current IP ? (y/N) " yN
+echo "##########################################################################################################################################"
+case $yN in
+        y )
+hostip=$(hostname -I)
+echo "Please Enter Current Host IP Address, Select from below IP addresses list"
+echo "$hostip"
+echo "Please choose the relevant IP"
+echo "Or use 127.0.0.1 as local host"
+echo "##########################################################################################################################################"
+read machineip
+while [ -z "$machineip" ]
+do	printf 'Please Enter Current Host IP Address: '
+	read -r machineip
+	[ -z "$machineip" ] && echo 'MachineIP cannot be empty; try again.'
+done
+netmask=$(ip -o -f inet addr show | awk '/scope global/ {print $4}' | grep $machineip | cut -c14-16 | grep -Eo "[0-9]+")
+logit "Success: You choose this IP address $machineip"
+;;
+* )
+echo "Stay with Current IP address is $current_ip"
+logit "Success: Stay with Current IP address is $current_ip"
+echo "##########################################################################################################################################"
+machineip=$current_ip
+;;
+esac
+echo "##########################################################################################################################################"
+echo "##########################################################################################################################################"
+echo "Please enter VIP ip address"
+read PublicVIP
+logit "PublicVIP is $PublicVIP"
+while [ -z "$PublicVIP" ]
+do	printf 'Please enter VIP ip address: '
+	read -r PublicVIP
+	[ -z "$PublicVIP" ] && echo 'VIP ip address cannot be empty; try again.'
+done
+PCS=$(pcs --version | cut -d . -f2)
+if [ ${PCS} -eq 9 ]
+   then
+echo "##########################################################################################################################################"
+echo "Please enter Master Node Name"
+read master_name
+logit "Master Node Name is $master_name"
+echo "##########################################################################################################################################"
+echo "Please enter Master Node IP address"
+read masterip
+logit "Master Node IP is $masterip"
+echo "##########################################################################################################################################"
+echo "$masterip  $master_name" | sudo tee -a  /etc/hosts
+fi
+logit "Success: This Server will be connected to VIP $PublicVIP"
+echo "Please enter This Node Number in the Cluster"
+read benode
+node=$((benode - 1))
+echo "##########################################################################################################################################"
+current_cluster=$(cat /etc/sqream/sqream1_config.json | grep 'cluster' | sed -e 's/.*://' | sed -e 's/[" ]*//' | sed -e 's/["],$//')
+echo "Your Current Storage is $current_cluster"
+echo "##########################################################################################################################################"
+cluster=$(cat /etc/sqream/sqream1_config.json | grep 'cluster' | sed -e 's/.*://' | sed -e 's/[" ]*//' | sed -e 's/["],$//')
+echo "Your Current Storage is $cluster"
+logit "Success: Your Current Storage is $current_cluster"
+echo "##########################################################################################################################################"
+logit "Success: Your SQream Storage Path is: $cluster" 
+logit "Success advance reconfiguration"
+install_metadata
+install_sqream_serverpicker_service 
+install_sqream_serverpicker
+create_service_config_template_file
+install_sqream_services
+formula_advance
+remove_old_files
+copy_files
+limitQuery
+}
+#################################### Function advance_configuration ############################################################################
+advance_configuration () {
+logit "Started: advance_configuration"
+clear
+echo "##########################################################################################################################################"
+echo "Welcome to SQream Advance Configuration"
+echo "##########################################################################################################################################"
+hostip=$(hostname -I)
+echo "Please Enter Current Host IP Address, Select from below IP addresses list"
+echo "$hostip"
+echo "Please choose the relevant IP"
+echo "Or use 127.0.0.1 as local host"
+echo "##########################################################################################################################################"
+read machineip
+logit "Machine IP is $machineip"
+while [ -z "$machineip" ]
+do	printf 'Please Enter Current Host IP Address: '
+	read -r machineip
+	[ -z "$machineip" ] && echo 'MachineIP cannot be empty; try again.'
+done
+netmask=$(ip -o -f inet addr show | awk '/scope global/ {print $4}' | grep $machineip | cut -c14-16 | grep -Eo "[0-9]+")
+logit "PublicVIP netmask is $netmask"
+echo "##########################################################################################################################################"
+
+PCS=$(pcs --version | cut -d . -f2)
+if [ ${PCS} -eq 9 ]
+   then
+echo "##########################################################################################################################################"
+echo "Please enter Master Node Name"
+read master_name
+logit "Master Node name is $master_name"
+echo "##########################################################################################################################################"
+echo "Please enter Master Node IP address"
+read master_ip
+logit "Master Node IP is $master_ip"
+echo "##########################################################################################################################################"
+echo "$master_ip  $master_name" | sudo tee -a  /etc/hosts
+fi
+echo "##########################################################################################################################################"
+echo "Please enter VIP ip address"
+read PublicVIP
+logit "PublicVIP is $PublicVIP"
+while [ -z "$PublicVIP" ]
+do	printf 'Please enter VIP ip address: '
+	read -r PublicVIP
+	[ -z "$PublicVIP" ] && echo 'VIP cannot be empty; try again.'
+done
+logit "Success: Public VIP"
+echo "##########################################################################################################################################"
+echo "Please enter This Node Number in the Cluster"
+read node
+logit "Node Number in the Cluster is $node"
+echo "##########################################################################################################################################"
+echo "Enter Your SQream Storage Path: "
+echo "##########################################################################################################################################"
+read cluster
+while [ -z "$cluster" ]
+do	printf 'Enter Your SQream Storage Path: '
+	read -r cluster
+	[ -z "$cluster" ] && echo 'SQream Storage Path cannot be empty; try again.'
+ done
+logit "Success: Storage Path is $cluster"
+logit "Success: advance_configuration"
+create_storage
+permission_sqream
+install_metadata
+install_sqream_serverpicker_service 
+install_sqream_serverpicker
+create_service_config_template_file
+install_sqream_services
+formula_advance
+copy_files
+limitQuery
+ 
+}
+
+############################################## advance_configuration_pcs #####################################################################
+advance_configuration_pcs () {
+logit "Started: advance_configuration_pcs"
+clear
+echo "##########################################################################################################################################"
+echo "Welcome to SQream Advance Configuration"
+echo "##########################################################################################################################################"
+hostip=$(hostname -I)
+echo "Please Enter Current Host IP Address, Select from below IP addresses list"
+echo "$hostip"
+echo "Please choose the relevant IP"
+echo "Or use 127.0.0.1 as local host"
+echo "##########################################################################################################################################"
+read machineip
+while [ -z "$machineip" ]
+do	printf 'Please Enter Current Host IP Address: '
+	read -r machineip
+	[ -z "$machineip" ] && echo 'MachineIP cannot be empty; try again.'
+done
+logit "Machine IP is $machineip"
+netmask=$(ip -o -f inet addr show | awk '/scope global/ {print $4}' | grep $machineip | cut -c14-16 | grep -Eo "[0-9]+")
+echo "##########################################################################################################################################"
+echo "Please enter Slave Node IP Address"
+read slaveip
+while [ -z "$slaveip" ]
+do	printf 'Please enter Slave Node IP Address: '
+	read -r slaveip
+	[ -z "$slaveip" ] && echo 'Slave Node IP cannot be empty; try again.'
+logit "Slave Node IP is $slaveip"
+done
+echo "Please enter Slave Node Name"
+read slave_hostname
+while [ -z "$slave_hostname" ]
+do	printf 'Please enter Slave Node Name: '
+	read -r slave_hostname
+	[ -z "$slave_hostname" ] && echo 'Slave Node Name cannot be empty; try again.'
+done
+logit "Slave Node Hostname is $slave_hostname"
+echo "##########################################################################################################################################"
+echo "Please enter Slave Node number in the Cluster"
+read benode
+node=$((benode - 1))
+echo "Slave Node number in the Cluster, is 1"
+echo "##########################################################################################################################################"
+echo "Please enter VIP ip address"
+read PublicVIP
+while [ -z "$PublicVIP" ]
+do	printf 'Please enter VIP ip address: '
+	read -r PublicVIP
+	[ -z "$PublicVIP" ] && echo 'VIP ip address cannot be empty; try again.'
+done
+logit "Success: This Server will be connected to VIP $PublicVIP"
+echo "##########################################################################################################################################"
+echo "Enter Your SQream Storage Path: "
+echo "##########################################################################################################################################"
+read cluster
+while [ -z "$cluster" ]
+do	printf 'Enter Your SQream Storage Path: '
+	read -r cluster
+	[ -z "$cluster" ] && echo 'SQream Storage Path cannot be empty; try again.'
+ done
+logit "Success: Storage Path is $cluster"
+logit "Success: function advance_configuration_pcs"
+create_storage
+permission_sqream
+install_sqream_serverpicker_service
+install_sqream_serverpicker
+create_service_config_template_file
+install_sqream_services
+pacemaker
+formula_advance_pcs
+copy_files
+limitQuery
+}
+
+######################## sqream_temp #######################################################################################################
+sqream_temp () {
+logit "Started sqream_temp"
+if [ -d sqream-temp ];then
+sudo rm -rf sqream-temp
+logit "Success: sqream_temp Deleted"
+else
+logit "Success, sqream_temp Not Exist"
+fi
+}
+
+############################ Move SQream Package to Relevant Folders ###########################################################################
+move_package()
+{
+logit "Started move_package"
+SQVER=$(echo "${TARFILE}"| sed "s/.*\///" | awk -F'[/.]' '{print $1 "." $2 "." $3 }')
+#SQVER=$(echo "${SQ}" | cut -c7-13)
+sudo mv /tmp/sqreampkg/sqream /usr/local/${SQVER}
+sudo chown -R sqream:sqream /usr/local/${SQVER}
+logit "Success: move_package"
+}
+
+############################################## generate_config_files ############################################################################
+generate_config_files() {
+logit "Started generate_config_files"
+    gpu_id=$1
+    worker_count=$2
+    i=0    
+    #DefaultPathToLogs=$cluster/tmp_logs
+        sport=5099
+        port=4999
+        while [ $i -lt $worker_count ]; do
+        ##################################################################################################
+        # Copy template files ############################################################################
+        ##################################################################################################
+        config_file="sqream${current_worker_id}_config.json"
+        cp default_config.json "$config_file"
+        config_service_file="sqream${current_worker_id}-service.conf"
+	      cp default_service.conf "$config_service_file"
+        service_file="sqream${current_worker_id}.service"
+        cp default.service "$service_file"
+        ##################################################################################################
+        # Update "gpu" and "cudaMemQuota" in the config file #############################################
+        ##################################################################################################
+        sed -i "s/\"gpu\": 0,/\"gpu\": $gpu_id,/" "$config_file"
+        sed -i "s/\"cudaMemQuota\": 90,/\"cudaMemQuota\": $new_cuda,/" "$config_file"
+        sed -i "s|@regular_port@|$((port + ${current_worker_id} ))|g" "$config_file"
+        sed -i "s|@sslport@|$((sport + ${current_worker_id} ))|g" "$config_file"
+        sed -i "s|@sqream_00@|sqream_${node}_0${current_worker_id}|g" "$config_file"
+        sed -i "s/\SERVICE_NAME\=sqream/\SERVICE_NAME\=sqream$current_worker_id/" "$config_service_file"
+        sed -i "s|@sqream@|sqream${current_worker_id}.log|g" "$config_service_file"
+        sed -i "s|@sqreamX-service.conf@|sqream${current_worker_id}-service.conf|g" "$service_file"
+                
+        current_worker_id=$((current_worker_id + 1))
+        i=$((i + 1))
+        done
+        
+        install_metadata
+        ################################################################################################# 
+        logit "Success: generate_config_files"    
+}
+
+##################################### Function formula_advance #################################################################################
+formula_advance_pcs () {
+logit "Started: formula_advance_pcs"
+num_gpus=$(nvidia-smi --query-gpu=name --format=csv,noheader | wc -l)
+echo "##########################################################################################################################################"
+echo "Number of GPUs: $num_gpus"
+i=0
+while [ $i -lt $num_gpus ]; do
+echo "##########################################################################################################################################"
+echo "Total GPU Memory per GPU Card ID"
+echo "GPU $i: $(nvidia-smi --query-gpu=memory.total --format=csv,noheader,nounits -i $i) MB"
+echo "##########################################################################################################################################"
+    i=$((i + 1))
+done
+current_worker_id=1
+gpu_id=0
+while [ $gpu_id -lt $num_gpus ]; do
+echo "Enter the number of workers you want to run on GPU $gpu_id: "
+read worker_count_gpu
+echo "##########################################################################################################################################"
+while [ -z "$worker_count_gpu" ]
+do	printf "Enter the number of workers you want to run on GPU $gpu_id: "
+	read -r worker_count_gpu
+	[ -z "$worker_count_gpu" ] && echo 'worker_count_gpu cannot be empty; try again.'
+done
+read -p "Do You want to customize cudaMemQuota ? (y/N) " yN
+echo "##########################################################################################################################################"
+case $yN in
+y )
+echo "Enter the desired cudaMemQuota value "
+read new_cuda
+echo "##########################################################################################################################################"
+ ;;
+* )
+echo "##########################################################################################################################################"
+echo "Using Default Value ( 96% / worker_count ) "
+new_cuda=$((94 / $worker_count_gpu))
+echo "##########################################################################################################################################"
+;;
+esac
+
+    create_config_template_file
+    generate_config_files_pcs "$gpu_id" "$worker_count_gpu"
+    gpu_id=$((gpu_id + 1))
+done
+logit "Success: formula_advance_pcs"
+}
+##################### Check  OS Version #########################################################################################
+check_os_version () {
+LinuxDistro=$(cat /etc/os-release |grep VERSION_ID |cut -d "=" -f2| sed -e 's/[" ]*//' | sed -e 's/[ "]$//'| cut -c -1)
+
+if [[ $(echo $LinuxDistro|grep '7') ]];then
+   echo "OS Version 7"
+   sudo subscription-manager repos --enable rhel-7-server-optional-rpms
+   sudo rpm -Uvh http://dl.fedoraproject.org/pub/epel/epel-release-latest-7.noarch.rpm
+   sudo yum install epel-release -y
+   sudo yum install ntp pciutils monit zlib-devel openssl-devel kernel-devel-$(uname -r) kernel-headers-$(uname -r) gcc net-tools wget jq libffi-devel gdbm-devel tk-devel xz-devel sqlite-devel readline-devel bzip2-devel ncurses-devel zlib-devel -y
+
+else
+   echo "OS Version 8"
+   sudo subscription-manager repos --enable codeready-builder-for-rhel-8-x86_64-rpms
+   sudo subscription-manager repos --enable rhel-8-for-x86_64-appstream-rpms
+   sudo subscription-manager repos --enable rhel-8-for-x86_64-baseos-rpms
+   sudo dnf install https://dl.fedoraproject.org/pub/epel/epel-release-latest-8.noarch.rpm -y
+   sudo dnf install chrony pciutils monit zlib-devel openssl-devel kernel-devel-$(uname -r) kernel-headers-$(uname -r) gcc net-tools wget jq libffi-devel xz-devel ncurses-compat-libs libnsl gdbm-devel tk-devel sqlite-devel readline-devel texinfo -y
+fi
+}
+
+############################################## pcs_metadata_only ###############################################################################
+pcs_metadata_only () {
+logit "Started: pcs_metadata_only"
+clear
+echo "##########################################################################################################################################"
+echo "Welcome to SQream Advance Configuration"
+echo "##########################################################################################################################################"
+hostip=$(hostname -I)
+echo "Please Enter Current Host IP Address, Select from below IP addresses list"
+echo "$hostip"
+echo "Please choose the relevant IP"
+echo "Or use 127.0.0.1 as local host"
+echo "##########################################################################################################################################"
+read machineip
+while [ -z "$machineip" ]
+do	printf 'Please Enter Current Host IP Address: '
+	read -r machineip
+	[ -z "$machineip" ] && echo 'MachineIP cannot be empty; try again.'
+done
+logit "Machine IP is $machineip"
+netmask=$(ip -o -f inet addr show | awk '/scope global/ {print $4}' | grep $machineip | cut -c14-16 | grep -Eo "[0-9]+")
+logit "PublicVIP netmask is $netmask"
+echo "##########################################################################################################################################"
+echo "Please enter VIP ip address"
+read PublicVIP
+while [ -z "$PublicVIP" ]
+do	printf 'Please enter VIP ip address: '
+	read -r PublicVIP
+	[ -z "$PublicVIP" ] && echo 'VIP ip address cannot be empty; try again.'
+done
+logit "Success: This Server will be connected to VIP $PublicVIP"
+echo "##########################################################################################################################################"
+echo "Enter Your SQream Cluster Storage Path: "
+echo "##########################################################################################################################################"
+read cluster
+while [ -z "$cluster" ]
+do	printf 'Enter Your SQream Storage Path: '
+	read -r cluster
+	[ -z "$cluster" ] && echo 'SQream Storage Path cannot be empty; try again.'
+ done
+logit "Success: Storage Path is $cluster"
+logit "Success: pcs_metadata_only"
+}
+#################################################### HELP ########################################################################
+help ()
+{
+  echo "usage: $0 [OPTIONS]"
+  echo "Options:"
+  clear
+  echo "###################################################################################################"
+  echo "-h, --help              show this help message end exit"
+  echo "---------------------------------------------------------------------------------------------------"
+  echo "-master,                Install Master Node Pacemaker Cluster"
+  echo "                        example: sudo ./pcs_sqream_installer_V1.sh -master < path to SQreamDB Package> "
+  echo "---------------------------------------------------------------------------------------------------"
+  echo "-slave,                 Install Slave Node Pacemaker Cluster"
+  echo "                        example: sudo ./pcs_sqream_installer_V1.sh -slave < path to SQreamDB Package> "
+  echo "---------------------------------------------------------------------------------------------------"
+  echo "-remaster,              Reconfig Master Node"
+  echo "                        example: sudo ./pcs_sqream_installer_V1.sh -remaster "
+  echo "---------------------------------------------------------------------------------------------------"
+  echo "-reslave,               Reconfig Slave Node"
+  echo "                        example: sudo ./pcs_sqream_installer_V1.sh -reslave "
+  #echo "---------------------------------------------------------------------------------------------------"
+  #echo "-sqreamdb,              Install SQream DB with No HA prepare for Node Join"
+  #echo "                        example: sudo ./pcs_sqream_installer_V1.sh -sqeramdb"
+  #echo "---------------------------------------------------------------------------------------------------"
+  echo "---------------------------------------------------------------------------------------------------"
+  echo "-prepare,               Prepare OS for SQreamDB and Pacemaker"
+  echo "                        example: sudo ./pcs_sqream_installer_V1.sh -prepare "
+  echo "---------------------------------------------------------------------------------------------------"
+  echo "-metadata,              Install SQream DB Metadata only for PCS"      
+  echo "                        example: sudo ./pcs_sqream_installer_V1.sh -metadata "
+  echo "---------------------------------------------------------------------------------------------------"
+  echo "-join,                  Join New Node to Pacemaker Cluster"
+  echo "                        example: sudo ./pcs_sqream_installer_V1.sh -join "
+  echo "---------------------------------------------------------------------------------------------------"
+  echo "-join_metadata,         Join SQreamDB Metadata Server only for Pacemaker"         
+  echo "                        example: sudo ./pcs_sqream_installer_V1.sh -join_metadata "
+  echo "---------------------------------------------------------------------------------------------------"
+  echo "-S, --Summary Log File"
+  echo "                        example: sudo ./pcs_sqream_installer_V1.sh -S "
+  echo "###################################################################################################"
+  exit
+}
+if [[ $# = 0 ]];then
+help
+fi
+while [[ $# > 0 ]]
+do
+key="$1"
+case $key in
+        # Shows help
+  -h|--help)
+    help
+  shift
+  ;;
+
+  -master|--file)
+    shift;
+    check_sqream_service_health;
+    check_metadata_service_health;
+    run_with_sudo;
+    check_logfile;
+    check_summary;
+    sqream_temp;
+    check_pacemaker_service_health;
+    etc_backup;
+    TARFILE=$1 ;
+    check_tar_file ;
+    check_permissions_and_folders;
+    verify_and_extract;
+    move_package;
+    make_symlink;
+    mkdir sqream-temp;
+    cd sqream-temp;
+    install_metadata_service;
+    install_metadata_config_json;
+    advance_configuration_pcs;
+    cd .. ;
+    sudo rm -rf sqream-temp;
+    sudo pcs cluster stop --all;
+    summary;
+logit "SQream Install successfully"
+  shift;
+    exit;shift;
+    ;;
+    
+ -slave|--file)
+    shift;
+    check_sqream_service_health;
+    check_metadata_service_health;
+    run_with_sudo;
+    sqream_temp;
+    etc_backup;
+    TARFILE=$1 ;
+    check_tar_file ;
+    check_permissions_and_folders;
+    verify_and_extract;
+    move_package;
+    make_symlink;
+    mkdir sqream-temp;
+    cd sqream-temp;
+    install_metadata_service;
+    install_metadata_config_json;
+    advance_configuration;
+    cd .. ;
+    sudo rm -rf sqream-temp;
+    summary;
+logit "SQream Install successfully"
+  shift;
+    exit;shift;
+    ;;
+  -prepare|--Prepare_Pacemake_SQream)
+   shift;
+   Prepare_PaceMaker;
+   Prepare_for_SQream;
+   exit;shift;
+    ;;
+  -remove|--remove_resource)
+  shift;
+  echo "Please Enter Resource Name to Delete"
+  read resource_name
+  sudo pcs resource delete $resource_name
+  exit;shift;
+    ;;
+
+  -reslave|--Reconfigure_Slave_Node)
+  shift;
+ run_with_sudo;
+ check_sqream_service_health;
+ check_metadata_service_health;
+ check_logfile;
+ check_summary;
+ check_if_sqreamdb_exist;
+ sqream_temp; 
+ mkdir sqream-temp;
+ cd sqream-temp;
+ install_metadata_service;
+ install_metadata_config_json;
+ install_metadata
+ advance_reconfiguration;
+ cd .. ;
+ sudo rm -rf sqream-temp;
+ summary;
+ exit;shift;
+    ;;
+-remaster|--Reconfigure_Master_Node)
+  shift;
+ run_with_sudo;
+ check_sqream_service_health;
+ check_metadata_service_health;
+ check_logfile;
+ check_summary;
+ check_if_sqreamdb_exist;
+ sqream_temp;
+ mkdir sqream-temp;
+ cd sqream-temp;
+ install_metadata_service;
+ install_metadata_config_json;
+ advance_reconfiguration_pcs;
+ cd .. ;
+ sudo rm -rf sqream-temp;
+ summary;
+ exit;shift;
+    ;;
+ -metadata|--pcs_metadata_only)
+ shift;
+ run_with_sudo;
+check_sqream_service_health;
+check_metadata_service_health;
+check_logfile;
+sqream_temp;
+etc_backup;
+check_pacemaker_service_health;
+TARFILE=$1;
+check_tar_file;
+check_permissions_and_folders;
+verify_and_extract;
+move_package;
+make_symlink;
+mkdir sqream-temp;
+cd sqream-temp;
+pcs_metadata_only;
+check_storage;
+install_metadata;
+install_sqream_serverpicker_service;
+install_sqream_serverpicker;
+install_metadata_service;
+install_metadata_config_json;
+meta_copy_files;
+cd ..
+sudo rm -rf sqream-temp;
+echo "#####################################"
+echo "# SQreamDB Meatadata Only Installed"
+echo "#####################################"
+ exit;shift;
+    ;;  
+-sqreamdb|--SQream_DB_only)
+ shift;
+run_with_sudo;
+check_sqream_service_health;
+check_metadata_service_health;
+check_logfile;
+sqream_temp;
+check_pacemaker_service_health;
+TARFILE=$1;
+check_tar_file;
+etc_backup;
+check_permissions_and_folders;
+verify_and_extract;
+move_package;
+make_symlink;
+mkdir sqream-temp;
+cd sqream-temp;
+install_metadata;
+install_metadata_service;
+install_metadata_config_json;
+advance_configuration;
+cd ..
+sudo rm -rf sqream-temp;
+ exit;shift;
+    ;;  
+-join|--pcs_node_join)    
+    shift;
+    pcs_node_join
+    exit;shift;
+    ;; 
+    -join_metadata|--pcs_metadata_join)    
+    shift;
+    pcs_metadata_join
+    exit;shift;
+    ;; 
+-S|--summery_report)
+  shift;
+  more /tmp/sqreamdb-summary.log
+exit;shift;
+    ;; 
+*)
+  echo "unrecognised option: $1"
+  help
+    ;;
+esac
+done
+
+
+
+

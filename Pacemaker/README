@@ -1,0 +1,34 @@
+###################################################################################################
+-h, --help              show this help message end exit
+---------------------------------------------------------------------------------------------------
+-master,                Install Master Node Pacemaker Cluster
+                        example: sudo ./pcs_sqream_installer_V1.sh -master < path to SQreamDB Package>
+---------------------------------------------------------------------------------------------------
+-slave,                 Install Slave Node Pacemaker Cluster
+                        example: sudo ./pcs_sqream_installer_V1.sh -slave < path to SQreamDB Package>
+---------------------------------------------------------------------------------------------------
+-remaster,              Reconfig Master Node
+                        example: sudo ./pcs_sqream_installer_V1.sh -remaster
+---------------------------------------------------------------------------------------------------
+-reslave,               Reconfig Slave Node
+                        example: sudo ./pcs_sqream_installer_V1.sh -reslave
+---------------------------------------------------------------------------------------------------
+-sqreamdb,              Install SQream DB with No HA prepare for Node Join
+                        example: sudo ./pcs_sqream_installer_V1.sh -sqeramdb
+---------------------------------------------------------------------------------------------------
+---------------------------------------------------------------------------------------------------
+-prepare,               Prepare OS for SQreamDB and Pacemaker
+                        example: sudo ./pcs_sqream_installer_V1.sh -prepare
+---------------------------------------------------------------------------------------------------
+-metadata,              Install SQream DB Metadata only for PCS
+                        example: sudo ./pcs_sqream_installer_V1.sh -metadata
+---------------------------------------------------------------------------------------------------
+-join,                  Join New Node to Pacemaker Cluster
+                        example: sudo ./pcs_sqream_installer_V1.sh -join
+---------------------------------------------------------------------------------------------------
+-join_metadata,         Join SQreamDB Metadata Server only for Pacemaker
+                        example: sudo ./pcs_sqream_installer_V1.sh -join_metadata
+---------------------------------------------------------------------------------------------------
+-S, --Summary Log File
+                        example: sudo ./pcs_sqream_installer_V1.sh -S
+###################################################################################################
