@@ -590,7 +590,7 @@ Documentation=http://docs.sqream.com/latest/manual/
 Type=simple
 EnvironmentFile=/etc/sqream/metadataserver.conf
 
-ExecStart=/bin/su - $RUN_USER -c "/bin/nohup ${DIR}/bin/metadata_server --config /etc/sqream/${SERVICE_NAME}\_config.json --log_path ${METADATALOG} --num_deleters ${DELETERS}  &>> ${LOGFILE}/${SERVICE_NAME}.log"
+ExecStart=/bin/su - $RUN_USER -c "/bin/nohup ${DIR}/bin/metadata_server --config /etc/sqream/${SERVICE_NAME}_config.json --log_path ${METADATALOG} --num_deleters ${DELETERS}  &>> ${LOGFILE}/${SERVICE_NAME}.log"
 ExecStartPost=/bin/sh -c "sleep 1; pidof metadata_server > /var/run/${SERVICE_NAME}.pid"
 ExecStop=/bin/sh -c "kill -9 `cat /var/run/${SERVICE_NAME}.pid`"
 ExecStopPost=/bin/rm -f /var/run/${SERVICE_NAME}.pid
@@ -763,7 +763,7 @@ Documentation=http://docs.sqream.com/latest/manual/
 Type=simple
 EnvironmentFile=/etc/sqream/@sqreamX-service.conf@
 
-ExecStart=/bin/su - $RUN_USER -c "source /etc/sqream/sqream_env.sh && exec ${DIR}/bin/sqreamd -config /etc/sqream/${SERVICE_NAME}\_config.json &>> ${LOGFILE}"
+ExecStart=/bin/su - $RUN_USER -c "source /etc/sqream/sqream_env.sh && exec ${DIR}/bin/sqreamd -config /etc/sqream/${SERVICE_NAME}_config.json &>> ${LOGFILE}"
 ExecStartPost=/bin/sh -c "sleep 2; /bin/ps --ppid ${MAINPID} -o pid= > /var/run/${SERVICE_NAME}.pid"
 ExecStop=/bin/sh -c "/bin/kill -9 `cat /var/run/${SERVICE_NAME}.pid`"
 ExecStopPost=/bin/rm -f /var/run/${SERVICE_NAME}.pid
