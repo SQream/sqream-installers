@@ -2533,7 +2533,6 @@ sudo cp /usr/local/sqream/etc/sqream_env.sh /etc/sqream
 sudo cp /usr/local/sqream/etc/server_picker_log_properties /etc/sqream
 sudo cp /usr/local/sqream/etc/metadata_log_properties /etc/sqream
 sudo cp /usr/local/sqream/etc/sqreamd_log_properties /etc/sqream
-sudo cp /usr/local/sqream/etc/sqreamCLOUD_config.json /etc/sqream
 sudo cp /usr/local/sqream/etc/flags* /etc/sqream
 sudo chown -R sqream:sqream /usr/local/sqream
 sudo chown -R sqream:sqream /etc/sqream
@@ -3565,7 +3564,6 @@ sudo cp /usr/local/sqream/etc/sqream_env.sh /etc/sqream
 sudo cp /usr/local/sqream/etc/server_picker_log_properties /etc/sqream
 sudo cp /usr/local/sqream/etc/metadata_log_properties /etc/sqream
 sudo cp /usr/local/sqream/etc/sqreamd_log_properties /etc/sqream
-sudo cp /usr/local/sqream/etc/sqreamCLOUD_config.json /etc/sqream
 sudo cp /usr/local/sqream/etc/flags* /etc/sqream
 sudo chown -R sqream:sqream /usr/local/sqream
 sudo chown -R sqream:sqream /etc/sqream
