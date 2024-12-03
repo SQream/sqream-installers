@@ -2827,7 +2827,6 @@ logit "Started generate_config_files_monit"
         logit "Success: generate_config_files_monit" 
         install_legacy
         install_metadata
-        sudo systemctl start monit >  /dev/null 
         sudo monit reload > /dev/null 
         sudo systemctl enable monit > /dev/null 2&>1
         sudo monit stop all > /dev/null 2&>1
