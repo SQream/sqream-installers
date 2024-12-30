@@ -2677,7 +2677,7 @@ Documentation=http://docs.sqream.com/latest/manual/
 Type=simple
 EnvironmentFile=/etc/sqream/metadataserver.conf
 
-ExecStart=/bin/su - $RUN_USER -c "/bin/nohup ${DIR}/bin/metadata_server --config /etc/sqream/${SERVICE_NAME}_config.json --log_path ${METADATALOG} --num_deleters ${DELETERS}  &>> ${LOGFILE}/${SERVICE_NAME}.log"
+ExecStart=/bin/su - $RUN_USER -c "/bin/nohup ${DIR}/bin/metadata_server --config /etc/sqream/${SERVICE_NAME}_config.json --log_path ${METADATALOG} --log4_config ${LOG4} --num_deleters ${DELETERS}  &>> ${LOGFILE}/${SERVICE_NAME}.log"
 ExecStartPost=/bin/sh -c "sleep 1; pidof metadata_server > /var/run/${SERVICE_NAME}.pid"
 ExecStop=/bin/sh -c "kill -9 `cat /var/run/${SERVICE_NAME}.pid`"
 ExecStopPost=/bin/rm -f /var/run/${SERVICE_NAME}.pid
