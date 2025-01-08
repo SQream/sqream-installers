@@ -111,14 +111,6 @@ echo "##########################################################################
 echo "Current SQream Cluster workers details:
 $current_workers"
 echo "#####################################################################################"
-echo "Please enter current master node number of workers"
-read current_worker_count_gpu_0
-while [ -z "$current_worker_count_gpu_0" ]
-do	printf 'Please enter current master node number of workers: '
-	read -r current_worker_count_gpu_0
-	[ -z "$current_worker_count_gpu_0" ] && echo 'current master node number of workers cannot be empty; try again.'
-done
-echo "#####################################################################################"
 echo "How many workers to add on master node"
 read add_master_worker_count_gpu
 while [ -z "$add_master_worker_count_gpu" ]
@@ -127,18 +119,16 @@ do	printf 'Please enter number of workers: '
 	[ -z "$add_master_worker_count_gpu" ] && echo 'number of workers cannot be empty; try again.'
 done
 #### Pacemaker X times on Master NODE ######################################################    
-current_worker_count_gpu=$((current_worker_count_gpu_0 +1))
-master_worker_count_gpu=$((current_worker_count_gpu_0 + add_master_worker_count_gpu))
-slave_worker_count_gpu=$((current_worker_count_gpu_0 + add_slave_worker_count_gpu ))
-i=$current_worker_count_gpu_0
+current_workers_num=$(sudo cat /var/lib/pacemaker/cib/cib.xml | grep $HOSTNAME | grep location-SQREAM | sed -E 's/.*id="([^"]+)".*/\1/' | sed -E 's/.*INFINITY"([^"]+)".*/\1/' | wc -l)
+i=$(( current_workers_num + 1 ))
+master_worker_count_gpu=$(( i + add_master_worker_count_gpu ))
 while [ $i -lt  $master_worker_count_gpu  ] ; do
-echo "==>Creating SQream_0_${current_worker_count_gpu} resource"
-sudo pcs resource create SQREAM_0_${current_worker_count_gpu} systemd:sqream${current_worker_count_gpu} \
+echo "==>Creating SQream_0_${i} resource"
+sudo pcs resource create SQREAM_0_${i} systemd:sqream${i} \
 op start timeout=60s on-fail=restart \
 op stop timeout=60s on-fail=ignore \
 op monitor on-fail=restart interval=20s role=Started 
-sudo pcs constraint location SQREAM_0_${current_worker_count_gpu} prefers $(hostname)
-current_worker_count_gpu=$((current_worker_count_gpu + 1))
+sudo pcs constraint location SQREAM_0_${i} prefers $(hostname)
 i=$((i + 1))
 done
 sudo pcs resource cleanup
@@ -172,14 +162,6 @@ echo "##########################################################################
 current_workers=$(sudo cat /var/lib/pacemaker/cib/cib.xml | grep $slave_hostname | grep location-SQREAM | sed -E 's/.*id="([^"]+)".*/\1/' | sed -E 's/.*INFINITY"([^"]+)".*/\1/')
 echo "Current SQream Cluster workers details:
 $current_workers"
-echo "#####################################################################################"
-echo "Please enter current slave node number of workers"
-read current_worker_count_gpu_1
-while [ -z "$current_worker_count_gpu_1" ]
-do	printf 'Please enter current slave node number of workers: '
-	read -r current_worker_count_gpu_1
-	[ -z "$current_worker_count_gpu_1" ] && echo 'current slave node number of workers cannot be empty; try again.'
-done
 echo "How many workers to add on slave node"
 read add_slave_worker_count_gpu
 while [ -z "$add_slave_worker_count_gpu" ]
@@ -189,16 +171,16 @@ do	printf 'How many workers to add on slave node: '
 done
 echo "#####################################################################################"
 #### Pacemaker X times on Slave NODE ######################################################
-current_worker_count_gpu=$((current_worker_count_gpu_1 + 1))
-slave_worker_count_gpu=$((current_worker_count_gpu + add_slave_worker_count_gpu ))
-i=$current_worker_count_gpu
+current_workers_num=$(sudo cat /var/lib/pacemaker/cib/cib.xml | grep $slave_hostname | grep location-SQREAM | sed -E 's/.*id="([^"]+)".*/\1/' | sed -E 's/.*INFINITY"([^"]+)".*/\1/' | wc -l)
+i=$(( current_workers_num + 1 ))
+slave_worker_count_gpu=$(( i + add_slave_worker_count_gpu ))
 while [ $i -lt $slave_worker_count_gpu ]; do
-echo "==>Creating SQream_${nodeid}_${current_worker_count_gpu} resource"
-sudo pcs resource create SQREAM_${nodeid}_${current_worker_count_gpu} systemd:sqream${current_worker_count_gpu} \
+echo "==>Creating SQream_${nodeid}_${i} resource"
+sudo pcs resource create SQREAM_${nodeid}_${i} systemd:sqream${i} \
 op start timeout=60s on-fail=restart \
 op stop timeout=60s on-fail=ignore \
 op monitor on-fail=restart interval=20s role=Started 
-sudo pcs constraint location SQREAM_${nodeid}_${current_worker_count_gpu} prefers $slave_hostname 
+sudo pcs constraint location SQREAM_${nodeid}_${i} prefers $slave_hostname 
 #current_worker_count_gpu=$((current_worker_count_gpu + 1))
 i=$((i + 1))
 done
@@ -210,6 +192,7 @@ exit
 esac
 sudo pcs cluster enable --all
 }
+
 ################################ Delete Workers from Cluster #################################################
 delete_workers () {
 clear
