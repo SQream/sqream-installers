@@ -47,14 +47,9 @@ do	printf 'Please insert the new node IP address: '
 done
 echo "#####################################################################################"
 logit "Join IP Address $join_ip"
-echo "Please insert the new node number in the Cluster"
-read join_node
-while [ -z "$join_node" ]
-do	printf 'Please insert the new node number in the Cluster: '
-	read -r join_node
-	[ -z "$join_node" ] && echo 'new node number cannot be empty; try again.'
-done
-logit "New Node Number $join_node"
+nodeid=$(cat  /var/lib/pacemaker/cib/cib.xml | grep 'node id' | wc -l )
+echo "new node ID in the Cluster will be: $(( nodeid + 1 ))"
+logit "New Node Number $join_node is: $(( nodeid + 1 ))"
 PCS=$(pcs --version | cut -d . -f2)
 if [ ${PCS} -eq 10 ]
    then     
@@ -86,12 +81,12 @@ join_node=$((join_node - 1))
 i=0
 current_worker_id=1
 while [ $i -lt $add_slave_worker_count_gpu ]; do
-echo "==>Creating SQream_$join_node_${current_worker_id} resource"
-sudo pcs resource create SQREAM_${join_node}_${current_worker_id} systemd:sqream${current_worker_id} \
+echo "==>Creating SQream_${nodeid}_${current_worker_id} resource"
+sudo pcs resource create SQREAM_${nodeid}_${current_worker_id} systemd:sqream${current_worker_id} \
 op start timeout=60s on-fail=restart \
 op stop timeout=60s on-fail=ignore \
 op monitor on-fail=restart interval=20s role=Started 
-sudo pcs constraint location SQREAM_${join_node}_${current_worker_id} prefers $join_hostname 
+sudo pcs constraint location SQREAM_${nodeid}_${current_worker_id} prefers $join_hostname 
 current_worker_id=$((current_worker_id + 1))
 i=$((i + 1))
 done
@@ -150,13 +145,8 @@ do	printf 'Please enter slave node hostname: '
 	[ -z "$slave_hostname" ] && echo 'slave node hostname cannot be empty; try again.'
 done
 echo "#####################################################################################"
-echo "Please enter slave node number in the Cluster"
-read nodeid
-while [ -z "$nodeid" ]
-do	printf 'Please enter slave node number in the Cluster: '
-	read -r nodeid
-	[ -z "$nodeid" ] && echo 'node number in the Cluster cannot be empty; try again.'
-done
+nodeid=$(cat  /var/lib/pacemaker/cib/cib.xml | grep 'node id' | grep $slave_hostname |  grep -oP 'id="\K\d+')
+echo "slave node ID in the Cluster is: $nodeid"
 nodeid=$((nodeid - 1))
 echo "#####################################################################################"
 current_workers=$(sudo cat /var/lib/pacemaker/cib/cib.xml | grep $slave_hostname | grep location-SQREAM | sed -E 's/.*id="([^"]+)".*/\1/' | sed -E 's/.*INFINITY"([^"]+)".*/\1/')
@@ -192,7 +182,6 @@ exit
 esac
 sudo pcs cluster enable --all
 }
-
 ################################ Delete Workers from Cluster #################################################
 delete_workers () {
 clear
@@ -293,6 +282,7 @@ if [[ $sqream == active ]]; then
 clear
 echo "###############################################################################"
 echo "SQreamDB is running on this host, Please stop SQreamDB and start over."
+echo "sudo pcs cluster stop --all"
 logit "Error: SQreamDB is running on this host, Please stop SQreamDB and start over."
 echo "###############################################################################"
 exit 
@@ -307,6 +297,7 @@ if [[ $metadata == active ]]; then
 clear
 echo "###############################################################################"
 echo "SQreamDB is running on this host, Please stop SQreamDB and start over."
+echo "sudo pcs cluster stop --all"
 logit "Error: SQreamDB is running on this host, Please stop SQreamDB and start over."
 echo "###############################################################################"
 exit 
@@ -948,6 +939,9 @@ fi
 ###################### Pacemaker ##################################################################################################################
 pacemaker () {
 logit "Started: function pacemaker"
+sudo systemctl disable corosync.service &> /dev/null
+sudo systemctl start pcsd.service &> /dev/null
+sudo systemctl enable pcsd.service &> /dev/null
 clear
 echo "##########################################################################################################################################"
 echo "                  You have choose SQreamDB HA , Please insert hacluster user and password when ask                                           "
@@ -1316,8 +1310,7 @@ do	printf 'Please enter VIP ip address: '
 done
 logit "Success: Public VIP"
 echo "##########################################################################################################################################"
-echo "Please enter this node number in the Cluster"
-read node
+node=1
 logit "Node Number in the Cluster is $node"
 echo "##########################################################################################################################################"
 echo "Enter Your SQream storage path: "
@@ -1382,10 +1375,9 @@ do	printf 'Please enter slave node hostname: '
 done
 logit "Slave Node Hostname is $slave_hostname"
 echo "##########################################################################################################################################"
-echo "Please enter slave node number in the Cluster"
-read benode
+benode=2
 node=$((benode - 1))
-echo "Slave node number in the Cluster, is $benode"
+echo "Slave node ID in the Cluster, is $benode"
 echo "##########################################################################################################################################"
 echo "Please enter VIP ip address"
 read PublicVIP
@@ -1904,7 +1896,3 @@ exit;shift;
     ;;
 esac
 done
-
-
-
-
