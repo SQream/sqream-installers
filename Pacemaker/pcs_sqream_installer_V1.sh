@@ -230,11 +230,21 @@ clear
 echo "#####################################################################################"
 echo "################# This proccess will Join metadata server to the Cluster ############"
 echo "#####################################################################################"
-echo "Please insert the new metadata node hostname"
+Please insert the new metadata node hostname
 read join_hostname
+while [ -z "$join_hostname" ]
+do	printf 'Please insert the new node hostname: '
+	read -r join_hostname
+	[ -z "$join_hostname" ] && echo 'New Node Hostname cannot be empty; try again.'
+done
 logit "Join Hostname $join_hostname"
 echo "Please insert the new metadata node IP Address"
 read join_ip
+while [ -z "$join_ip" ]
+do	printf 'Please insert the new node IP Address: '
+	read -r join_ip
+	[ -z "$join_hostname" ] && echo 'New Node IP Address cannot be empty; try again.'
+done
 logit "Join IP $join_ip"
 PCS=$(pcs --version | cut -d . -f2)
 if [ ${PCS} -eq 10 ]
@@ -829,6 +839,11 @@ logit "Started generate_config_files_pcs"
         echo "How many workers to add on slave node"
         echo "##########################################################################################"
         read worker_count_gpu
+        while [ -z "$worker_count_gpu" ]
+        do	printf 'How many workers to add on slave node: '
+	      read -r $worker_count_gpu
+      	[ -z "$worker_count_gpu" ] && echo 'nuber of workers cannot be empty; try again.'
+        done
         i=0
         current_worker_id=1
         while [ $i -lt $worker_count_gpu ]; do
@@ -1152,16 +1167,25 @@ esac
 echo "##########################################################################################################################################"
 echo "Please enter slave node hostname"
 read slave_hostname
+while [ -z "$slave_hostname" ]
+do	printf 'Please insert slave node hostname: '
+	read -r slave_hostname
+	[ -z "$slave_hostname" ] && echo 'slave node hostname cannot be empty; try again.'
+done
 logit "Slave Hostname is $slave_hostname"
 echo "##########################################################################################################################################"
 echo "Please enter slave node IP address"
 read slaveip
+while [ -z "$slaveip" ]
+do	printf 'Please enter slave node IP address: '
+	read -r slaveip
+	[ -z "$slaveip" ] && echo 'slave node IP address cannot be empty; try again.'
+done
 logit "Slave Node IP is $slaveip"
 echo "##########################################################################################################################################"
 echo "$slave_ip  $slave_name" | sudo tee -a  /etc/hosts
 #fi
 logit "Success: This server will be connected to VIP $PublicVIP"
-
 echo "##########################################################################################################################################"
 cluster=$(cat /etc/sqream/sqream1_config.json | grep 'cluster' | sed -e 's/.*://' | sed -e 's/[" ]*//' | sed -e 's/["],$//')
 echo "Your Current Storage is $cluster"
@@ -1291,10 +1315,20 @@ if [ ${PCS} -eq 9 ]
 echo "##########################################################################################################################################"
 echo "Please enter Master Node Name"
 read master_name
+while [ -z "$master_name" ]
+do	printf 'Please enter Master Node Name: '
+	read -r master_name
+	[ -z "$master_name" ] && echo 'Master Node Name cannot be empty; try again.'
+done
 logit "Master Node name is $master_name"
 echo "##########################################################################################################################################"
 echo "Please enter Master Node IP address"
 read master_ip
+while [ -z "$master_ip" ]
+do	printf 'Please enter Master Node IP address: '
+	read -r master_ip
+	[ -z "$master_ip" ] && echo 'Master Node IP address cannot be empty; try again.'
+done
 logit "Master Node IP is $master_ip"
 echo "##########################################################################################################################################"
 echo "$master_ip  $master_name" | sudo tee -a  /etc/hosts
@@ -1503,6 +1537,11 @@ case $yN in
 y )
 echo "Enter the desired cudaMemQuota value "
 read new_cuda
+while [ -z "$new_cuda" ]
+do	printf 'Enter the desired cudaMemQuota value: '
+	read -r new_cuda
+	[ -z "$new_cuda" ] && echo 'desired cudaMemQuota value cannot be empty; try again.'
+done
 echo "##########################################################################################################################################"
  ;;
 * )
