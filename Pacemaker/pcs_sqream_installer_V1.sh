@@ -27,6 +27,7 @@ logit "Success remove_old_files"
 }
 ##############################################################################################################################
 pcs_node_join () {
+clear
 echo "#####################################################################################"
 logit "Started pcs_node_join"
 echo "Please insert the new node hostname"
@@ -219,8 +220,16 @@ pcs_remove_node () {
 echo "Please insert node hostname to be removed from Cluster"
 read remove_hostname
 sudo pcs cluster stop $remove_hostname
+current_workers=$(sudo cat /var/lib/pacemaker/cib/cib.xml | grep $remove_hostname |grep location-SQREAM | sed -E 's/.*id="([^"]+)".*/\1/' | sed -E 's/.*INFINITY"([^"]+)".*/\1/' | wc -l)
+benodeid=$(cat  /var/lib/pacemaker/cib/cib.xml | grep 'node id' | grep $remove_hostname |  grep -oP 'id="\K\d+')
+nodeid=$(( benodeid - 1 ))
+for i in $(seq 1 ${current_workers}); do
+sudo pcs  resource remove SQREAM_${nodeid}_${i}
+done
+sleep 2
+echo "removing $remove_hostname from Cluster"
 sudo pcs cluster node remove $remove_hostname
-sudo pcs pcsd clear-auth $remove_hostname
+sudo pcs host deauth $remove_hostname
 echo "Currently Cluster node's $(sudo pcs cluster auth) "
 }
 ################################ Join Node to Cluster ###########################################################################################
@@ -230,7 +239,7 @@ clear
 echo "#####################################################################################"
 echo "################# This proccess will Join metadata server to the Cluster ############"
 echo "#####################################################################################"
-Please insert the new metadata node hostname
+echo "Please insert the new metadata node hostname"
 read join_hostname
 while [ -z "$join_hostname" ]
 do	printf 'Please insert the new node hostname: '
@@ -291,11 +300,19 @@ sqream=$(sudo systemctl is-active  sqream1.service)
 if [[ $sqream == active ]]; then
 clear
 echo "###############################################################################"
-echo "SQreamDB is running on this host, Please stop SQreamDB and start over."
-echo "sudo pcs cluster stop --all"
 logit "Error: SQreamDB is running on this host, Please stop SQreamDB and start over."
-echo "###############################################################################"
-exit 
+echo "SQreamDB is running on this host, Please stop SQreamDB and start over."
+read -p "Do you want to stop the Cluster ? (Y/n) " Yn
+case $Yn in
+n ) 
+exit
+logit "exit"
+;;
+* )
+sudo pcs cluster stop --all
+logit "sudo pcs cluster stop --all"
+;;
+esac
 fi
 logit "Success: check_sqream_service_health"
 }
@@ -833,7 +850,11 @@ logit "Started generate_config_files_pcs"
         current_worker_id=$((current_worker_id + 1))
         i=$((i + 1))
         done
+        install_metadata        
+}
+        
         ######################### Pacemaker X times ######################################################
+        generate_config_files_pcs_slave() {
         clear
         echo "##########################################################################################"
         echo "How many workers to add on slave node"
@@ -860,7 +881,7 @@ logit "Started generate_config_files_pcs"
         done
         logit "Success: generate_config_files_pcs"
 
-        install_metadata
+        
         #################################################################################################
 
 }
@@ -1074,7 +1095,9 @@ done
 current_worker_id=1
 gpu_id=0
 while [ $gpu_id -lt $num_gpus ]; do 
+echo "##########################################################################################################################################"
 echo "Enter the number of workers you want to run on GPU $gpu_id: "
+echo "##########################################################################################################################################"
 read worker_count_gpu
 echo "##########################################################################################################################################"
 while [ -z "$worker_count_gpu" ]
@@ -1183,8 +1206,6 @@ do	printf 'Please enter slave node IP address: '
 done
 logit "Slave Node IP is $slaveip"
 echo "##########################################################################################################################################"
-echo "$slave_ip  $slave_name" | sudo tee -a  /etc/hosts
-#fi
 logit "Success: This server will be connected to VIP $PublicVIP"
 echo "##########################################################################################################################################"
 cluster=$(cat /etc/sqream/sqream1_config.json | grep 'cluster' | sed -e 's/.*://' | sed -e 's/[" ]*//' | sed -e 's/["],$//')
@@ -1263,16 +1284,41 @@ echo "Stay with Current VIP ip address"
 ;;
 esac
 logit "Success: This Server will be connected to VIP $PublicVIP"
-echo "Please enter This node number in the Cluster"
-read benode
-node=$((benode - 1))
+echo "##########################################################################################################################################"
+echo "Please enter slave node number in the Cluster"
+echo "Master=1 ,first slave=2 , all other slaves from 3 and above"
+echo "##########################################################################################################################################"
+read slave_node_id
+while [ -z "$slave_node_id" ]
+do	printf 'Please enter slave node number in the Cluster: '
+	read -r slave_node_id
+	[ -z "$slave_node_id" ] && echo 'slave node number in the Cluster cannot be empty; try again.'
+done
+node=$((slave_node_id - 1 ))
+echo "##########################################################################################################################################"
 echo "##########################################################################################################################################"
 current_cluster=$(cat /etc/sqream/sqream1_config.json | grep 'cluster' | sed -e 's/.*://' | sed -e 's/[" ]*//' | sed -e 's/["],$//')
 echo "Your current storage is $current_cluster"
 echo "##########################################################################################################################################"
-cluster=$(cat /etc/sqream/sqream1_config.json | grep 'cluster' | sed -e 's/.*://' | sed -e 's/[" ]*//' | sed -e 's/["],$//')
-echo "Your current storage is $cluster"
-logit "Success: Your Current Storage is $current_cluster"
+read -p "Do you want to change current sqream storage ? (y/N) " yN
+case $yN in
+y )
+echo "Please enter new sqream storage path"
+read new_cluster
+while [ -z "$new_cluster" ]
+do	printf 'Please enter new sqream storage path: '
+	read -r new_cluster
+	[ -z "$new_cluster" ] && echo 'sqream storage path cannot be empty; try again.'
+done
+cluster=$new_cluster
+logit "SQream storage path is: $new_cluster "
+;;
+* )
+cluster=$current_cluster
+echo "Stay with Current sqream storage path $cluster"
+logit "Success: Stay with Current sqream storage path $cluster"
+;;
+esac
 echo "##########################################################################################################################################"
 logit "Success: Your SQream Storage Path is: $cluster" 
 logit "Success advance reconfiguration"
@@ -1344,8 +1390,16 @@ do	printf 'Please enter VIP ip address: '
 done
 logit "Success: Public VIP"
 echo "##########################################################################################################################################"
-node=1
-logit "Node Number in the Cluster is $node"
+echo "Please enter slave node number in the Cluster"
+echo "Master=1 ,first slave=2 , all other slaves from 3 and above"
+echo "##########################################################################################################################################"
+read slave_node_id
+while [ -z "$slave_node_id" ]
+do	printf 'Please enter slave node number in the Cluster: '
+	read -r slave_node_id
+	[ -z "$slave_node_id" ] && echo 'slave node number in the Cluster cannot be empty; try again.'
+done
+node=$((slave_node_id - 1 ))
 echo "##########################################################################################################################################"
 echo "Enter Your SQream storage path: "
 echo "##########################################################################################################################################"
@@ -1412,15 +1466,17 @@ echo "##########################################################################
 benode=2
 node=$((benode - 1))
 echo "Slave node ID in the Cluster, is $benode"
+logit "Slave node ID in the Cluster, is $benode"
 echo "##########################################################################################################################################"
 echo "Please enter VIP ip address"
 read PublicVIP
+logit "PublicVIP is $PublicVIP"
 while [ -z "$PublicVIP" ]
 do	printf 'Please enter VIP ip address: '
 	read -r PublicVIP
-	[ -z "$PublicVIP" ] && echo 'VIP ip address cannot be empty; try again.'
+	[ -z "$PublicVIP" ] && echo 'VIP cannot be empty; try again.'
 done
-logit "Success: This Server will be connected to VIP $PublicVIP"
+logit "Success: Public VIP"
 echo "##########################################################################################################################################"
 echo "Enter Your SQream storage path: "
 echo "##########################################################################################################################################"
@@ -1523,7 +1579,9 @@ done
 current_worker_id=1
 gpu_id=0
 while [ $gpu_id -lt $num_gpus ]; do
+echo "##########################################################################################################################################"
 echo "Enter the number of workers you want to run on GPU $gpu_id: "
+echo "##########################################################################################################################################"
 read worker_count_gpu
 echo "##########################################################################################################################################"
 while [ -z "$worker_count_gpu" ]
@@ -1557,6 +1615,7 @@ esac
     gpu_id=$((gpu_id + 1))
 done
 logit "Success: formula_advance_pcs"
+generate_config_files_pcs_slave
 }
 ##################### Check  OS Version #########################################################################################
 check_os_version () {
@@ -1631,7 +1690,6 @@ read -p "Do you want to continue ? (y/N) " yN
 echo "###################################################"
 case $yN in
         y )
-        continue
         ;;
         * )
         exit
@@ -1647,7 +1705,6 @@ read -p "Do you want to continue ? (y/N) " yN
 echo "###################################################"
 case $yN in
         y )
-        continue
         ;;
         * )
         exit
@@ -1692,14 +1749,14 @@ help ()
   echo "-reslave,         Reconfig slave node"
   echo "                  example: sudo ./pcs_sqream_installer_V1.sh -reslave "
   echo "---------------------------------------------------------------------------------------------------"
-  echo "-add-workers,     Add workers to SQream DB HA Cluster"
-  echo "                  example: sudo ./pcs_sqream_installer_V1.sh -add-workers"
-  echo "---------------------------------------------------------------------------------------------------"
-  echo "---------------------------------------------------------------------------------------------------"
-  echo "-delete-workers,  Delete workers from SQream HA Cluster"
-  echo "                  example: sudo ./pcs_sqream_installer_V1.sh -delete-workers"
-  echo "---------------------------------------------------------------------------------------------------"
-  echo "---------------------------------------------------------------------------------------------------"
+  #echo "-add-workers,     Add workers to SQream DB HA Cluster"
+  #echo "                  example: sudo ./pcs_sqream_installer_V1.sh -add-workers"
+  #echo "---------------------------------------------------------------------------------------------------"
+  #echo "---------------------------------------------------------------------------------------------------"
+  #echo "-delete-workers,  Delete workers from SQream HA Cluster"
+  #echo "                  example: sudo ./pcs_sqream_installer_V1.sh -delete-workers"
+  #echo "---------------------------------------------------------------------------------------------------"
+  #echo "---------------------------------------------------------------------------------------------------"
   echo "-prepare,         Prepare OS for SQreamDB and Pacemaker"
   echo "                  example: sudo ./pcs_sqream_installer_V1.sh -prepare "
   echo "---------------------------------------------------------------------------------------------------"
@@ -1929,9 +1986,18 @@ exit;shift;
   delete_workers
   exit;shift;
     ;;    
+-remove_node|--remove_node)
+  shift;
+  on_master;
+  pcs_remove_node
+  exit;shift;
+    ;;        
 *)
   echo "unrecognised option: $1"
   help
     ;;
 esac
 done
+
+
+
