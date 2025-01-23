@@ -461,8 +461,8 @@ fi
 check_permissions_and_folders()
 {
 logit "Started check_permissions_and_folders"
-SQVER=$(echo "${TARFILE}"| sed "s/.*\///" | awk -F'[/.]' '{print $1 "." $2 "." $3 }')
-#SQVER=$(echo "${SQ}" | cut -c7-13)
+SQVER1=$(echo "${TARFILE}"| sed "s/.*\///") 
+SQVER=${SQVER1%.*.*.*}
 clear
 if [ -f /etc/sqream/sqream-admin-config.json ]
 then 
@@ -485,7 +485,8 @@ sudo rm -f  /usr/local/sqream
 logit "Success: remove SQream old Link" 
 fi
 if
-SQVER=$(echo "${TARFILE}"| sed "s/.*\///" | awk -F'[/.]' '{print $1 "." $2 "." $3 }')
+SQVER1=$(echo "${TARFILE}"| sed "s/.*\///") 
+SQVER=${SQVER1%.*.*.*}
 [ -d /usr/local/${SQVER} ];then
 sudo mv  /usr/local/${SQVER} /usr/local/sqream_${today}
 logit "Success: moving /usr/local/$SQVER to /usr/local/sqream_$today"
@@ -1515,8 +1516,8 @@ fi
 move_package()
 {
 logit "Started move_package"
-SQVER=$(echo "${TARFILE}"| sed "s/.*\///" | awk -F'[/.]' '{print $1 "." $2 "." $3 }')
-#SQVER=$(echo "${SQ}" | cut -c7-13)
+SQVER1=$(echo "${TARFILE}"| sed "s/.*\///") 
+SQVER=${SQVER1%.*.*.*}
 sudo mv /tmp/sqreampkg/sqream /usr/local/${SQVER}
 sudo chown -R sqream:sqream /usr/local/${SQVER}
 logit "Success: move_package"
