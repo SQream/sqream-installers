@@ -799,7 +799,6 @@ cat <<EOF | tee default_config.json > /dev/null
     "metadataServerIp": "$PublicVIP",
     "metadataServerPort": 3105,
     "port": @regular_port@,
-    "instanceId": "@sqream_00@",
     "portSsl": @sslport@,
     "initialSubscribedServices": "sqream",
     "useConfigIP": true
