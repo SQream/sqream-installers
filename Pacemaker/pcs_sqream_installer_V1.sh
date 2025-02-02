@@ -1769,7 +1769,7 @@ do      printf 'Please insert METADATA HOST IP Address: '
         read -r MD_HOST
         [ -z "$MD_HOST" ] && echo 'METADATA HOST IP Address cannot be empty; try again.'
 done
-cat <<EOF | tee /usr/local/sqream/etc/cbo-client.conf > /dev/null
+cat <<EOF | tee /etc/sqream/cbo-client.conf > /dev/null
 JAVA_HOME=/home/sqream/jdk-17.0.10
 BINDIR=/usr/local/sqream/bin
 RUN_USER=sqream
@@ -1803,7 +1803,7 @@ echo "##########################################################################
 echo "stay with current METADATA HOST IP Address: $MD_HOST"
 echo "##########################################################################################################################################"
 MD_HOST=$MD_HOST
-cat <<EOF | tee /usr/local/sqream/etc/cbo-client.conf > /dev/null
+cat <<EOF | tee /etc/sqream/cbo-client.conf > /dev/null
 JAVA_HOME=/home/sqream/jdk-17.0.10
 BINDIR=/usr/local/sqream/bin
 RUN_USER=sqream
