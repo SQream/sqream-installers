@@ -1727,7 +1727,128 @@ case $yN in
         ;;
 esac
 }
+################################# CBO installer #################################################################################
+cbo_installer() {
+clear
+echo "##########################################################################################################################################"
+if  [ ! -f /usr/local/sqream/bin/cbo-backend ];then
+echo "SQreamDB package has no CBO support"
+echo "##########################################################################################################################################"
+exit
+fi
+echo "##########################################################################################################################################"
+sudo cp /usr/local/sqream/service/md-service.service /usr/lib/systemd/system/
+cp /usr/local/sqream/etc/md-service.conf /etc/sqream
+sudo cp /usr/local/sqream/service/cbo*.service /usr/lib/systemd/system/
+MD_HOST=$(cat /etc/sqream/sqream1_config.json | grep 'metadataServerIp' | sed -e 's/.*://' | sed -e 's/[" ]*//' | sed -e 's/["],$//')
+echo "##########################################################################################################################################"
+echo "Welcome to SQream CBO installer"
+echo "Please Enter JAVA_HOME PATH"
+read JAVA_HOME
+if  [ ! -f $JAVA_HOME/bin/java ];then
+echo "No JAVA_HOME Found"
+exit
+fi
+#echo "##########################################################################################################################################"
+#echo "Please insert BACKEND HOST IP Address"
+#read BACKEND_HOST
+#while [ -z "$BACKEND_HOST" ]
+#do      printf 'Please insert BACKEND HOST IP Address: '
+#        read -r BACKEND_HOST
+#        [ -z "$BACKEND_HOST" ] && echo 'BACKEND HOST IP Address cannot be empty; try again.'
+#done
+echo "##########################################################################################################################################"
+echo "Your current Metadataserver IP: $MD_HOST"
+read -p "Do you want to change Metadataserver IP ? (y/N) " yN
+case $yN in
+y ) echo "Please insert METADATA HOST IP Address"
+read MD_HOST
+while [ -z "$MD_HOST" ]
+do      printf 'Please insert METADATA HOST IP Address: '
+        read -r MD_HOST
+        [ -z "$MD_HOST" ] && echo 'METADATA HOST IP Address cannot be empty; try again.'
+done
+cat <<EOF | tee /usr/local/sqream/etc/cbo-client.conf > /dev/null
+JAVA_HOME=/home/sqream/jdk-17.0.10
+BINDIR=/usr/local/sqream/bin
+RUN_USER=sqream
+LOG_DIR=/var/log/sqream
+CONFDIR=/etc/sqream/
+JAR=compiler-frontend.jar
+CBO_PORT=6666
+BACKEND_HOST=127.0.0.1
+BACKEND_PORT=6665
+MD_PORT=6668
+MD_HOST=127.0.0.1
+TMEM=16m
+MEM=8g
+LOGLEVEL=INFO
+EOF
+cat <<EOF | tee /etc/sqream/md-service.conf > /dev/null
+SERVICE_NAME=md-service
+RUN_USER=sqream
+BINDIR=/usr/local/sqream/bin
+BINFILE=metadata_service
+LOG_DIR=/var/log/sqream
+CONFDIR=/etc/sqream/
+MDS_PORT=6668
+MDS_ADDRESS=0.0.0.0
+MD_SERVER_PORT=3105
+MD_SERVER_ADDR=$MD_HOST
+EOF
+;;
+* )
+echo "##########################################################################################################################################"
+echo "stay with current METADATA HOST IP Address: $MD_HOST"
+echo "##########################################################################################################################################"
+MD_HOST=$MD_HOST
+cat <<EOF | tee /usr/local/sqream/etc/cbo-client.conf > /dev/null
+JAVA_HOME=/home/sqream/jdk-17.0.10
+BINDIR=/usr/local/sqream/bin
+RUN_USER=sqream
+LOG_DIR=/var/log/sqream
+CONFDIR=/etc/sqream/
+JAR=compiler-frontend.jar
+CBO_PORT=6666
+BACKEND_HOST=127.0.0.1
+BACKEND_PORT=6665
+MD_PORT=6668
+MD_HOST=127.0.0.1
+TMEM=16m
+MEM=8g
+LOGLEVEL=INFO
+EOF
+cat <<EOF | tee /etc/sqream/md-service.conf > /dev/null
+SERVICE_NAME=md-service
+RUN_USER=sqream
+BINDIR=/usr/local/sqream/bin
+BINFILE=metadata_service
+LOG_DIR=/var/log/sqream
+CONFDIR=/etc/sqream/
+MDS_PORT=6668
+MDS_ADDRESS=0.0.0.0
+MD_SERVER_PORT=3105
+MD_SERVER_ADDR=$MD_HOST
+EOF
+;;
+esac
 
+sudo systemctl daemon-reload
+sudo systemctl enable --now cbo-backend.service
+sudo systemctl enable --now cbo-client.service
+sudo systemctl enable --now md-service.service
+echo "###################################################################################################"
+echo "CBO installed successfuly"
+echo "###################################################################################################"
+sleep 3
+echo "###################################################################################################"
+echo '
+to check CBO services:
+sudo systemctl status cbo-backend.service
+sudo systemctl status cbo-client.service
+sudo systemctl status md-service.service'
+echo "###################################################################################################"
+}
 #################################################### HELP ########################################################################
 help ()
 {
