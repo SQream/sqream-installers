@@ -1890,6 +1890,9 @@ help ()
   echo "-join_metadata,   Join SQreamDB Metadata Server to Pacemaker Cluster"         
   echo "                  example: sudo ./pcs_sqream_installer_V1.sh -join_metadata"
   echo "---------------------------------------------------------------------------------------------------"
+  echo "-cbo,                   Install SQreamDB CBO project"
+  echo "                        example: sudo ./sqream-install-v1.sh -cbo "
+  echo "---------------------------------------------------------------------------------------------------"
   echo "-S, --Summary Log File"
   echo "                  example: sudo ./pcs_sqream_installer_V1.sh -S "
   echo "###################################################################################################"
@@ -2118,6 +2121,11 @@ exit;shift;
  sudo pcs resource cleanup | watch sudo pcs status
  exit;shift;
     ;;  
+-cbo|--cbo_install)
+  shift;
+  cbo_installer
+  shift;
+  ;;    
 *)
   echo "unrecognised option: $1"
   help
