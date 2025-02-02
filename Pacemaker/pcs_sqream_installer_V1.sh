@@ -1739,6 +1739,7 @@ fi
 echo "##########################################################################################################################################"
 sudo cp /usr/local/sqream/service/md-service.service /usr/lib/systemd/system/
 cp /usr/local/sqream/etc/md-service.conf /etc/sqream
+cp /usr/local/sqream/etc/cbo-backend.conf /etc/sqream
 sudo cp /usr/local/sqream/service/cbo*.service /usr/lib/systemd/system/
 MD_HOST=$(cat /etc/sqream/sqream1_config.json | grep 'metadataServerIp' | sed -e 's/.*://' | sed -e 's/[" ]*//' | sed -e 's/["],$//')
 echo "##########################################################################################################################################"
