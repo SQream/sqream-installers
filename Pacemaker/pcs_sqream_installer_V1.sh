@@ -799,6 +799,7 @@ cat <<EOF | tee default_config.json > /dev/null
     "metadataServerIp": "$PublicVIP",
     "metadataServerPort": 3105,
     "port": @regular_port@,
+    "instanceId": "@sqream_00@",
     "portSsl": @sslport@,
     "initialSubscribedServices": "sqream",
     "useConfigIP": true
@@ -1284,18 +1285,18 @@ echo "Stay with Current VIP ip address"
 ;;
 esac
 logit "Success: This Server will be connected to VIP $PublicVIP"
-#echo "##########################################################################################################################################"
-#echo "Please enter slave node number in the Cluster"
-#echo "Master=1 ,first slave=2 , all other slaves from 3 and above"
-#echo "##########################################################################################################################################"
-#read slave_node_id
-#while [ -z "$slave_node_id" ]
-#do	printf 'Please enter slave node number in the Cluster: '
-#	read -r slave_node_id
-#	[ -z "$slave_node_id" ] && echo 'slave node number in the Cluster cannot be empty; try again.'
-#done
-#node=$((slave_node_id - 1 ))
-#echo "##########################################################################################################################################"
+echo "##########################################################################################################################################"
+echo "Please enter slave node number in the Cluster"
+echo "Master=1 ,first slave=2 , all other slaves from 3 and above"
+echo "##########################################################################################################################################"
+read slave_node_id
+while [ -z "$slave_node_id" ]
+do	printf 'Please enter slave node number in the Cluster: '
+	read -r slave_node_id
+	[ -z "$slave_node_id" ] && echo 'slave node number in the Cluster cannot be empty; try again.'
+done
+node=$((slave_node_id - 1 ))
+echo "##########################################################################################################################################"
 echo "##########################################################################################################################################"
 current_cluster=$(cat /etc/sqream/sqream1_config.json | grep 'cluster' | sed -e 's/.*://' | sed -e 's/[" ]*//' | sed -e 's/["],$//')
 echo "Your current storage is $current_cluster"
@@ -1389,17 +1390,17 @@ do	printf 'Please enter VIP ip address: '
 	[ -z "$PublicVIP" ] && echo 'VIP cannot be empty; try again.'
 done
 logit "Success: Public VIP"
-#echo "##########################################################################################################################################"
-#echo "Please enter slave node number in the Cluster"
-#echo "Master=1 ,first slave=2 , all other slaves from 3 and above"
-#echo "##########################################################################################################################################"
-#read slave_node_id
-#while [ -z "$slave_node_id" ]
-#do	printf 'Please enter slave node number in the Cluster: '
-#	read -r slave_node_id
-#	[ -z "$slave_node_id" ] && echo 'slave node number in the Cluster cannot be empty; try again.'
-#done
-#node=$((slave_node_id - 1 ))
+echo "##########################################################################################################################################"
+echo "Please enter slave node number in the Cluster"
+echo "Master=1 ,first slave=2 , all other slaves from 3 and above"
+echo "##########################################################################################################################################"
+read slave_node_id
+while [ -z "$slave_node_id" ]
+do	printf 'Please enter slave node number in the Cluster: '
+	read -r slave_node_id
+	[ -z "$slave_node_id" ] && echo 'slave node number in the Cluster cannot be empty; try again.'
+done
+node=$((slave_node_id - 1 ))
 echo "##########################################################################################################################################"
 echo "Enter Your SQream storage path: "
 echo "##########################################################################################################################################"
