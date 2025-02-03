@@ -13,8 +13,8 @@
 -reslave,               Reconfig Slave Node
                         example: sudo ./pcs_sqream_installer_V1.sh -reslave
 ---------------------------------------------------------------------------------------------------
--sqreamdb,              Install SQream DB with No HA prepare for Node Join
-                        example: sudo ./pcs_sqream_installer_V1.sh -sqeramdb
+-cbo,                   Install SQreamDB CBO project
+                        example: sudo ./pcs_sqream_installer_V1.sh -cbo
 ---------------------------------------------------------------------------------------------------
 ---------------------------------------------------------------------------------------------------
 -prepare,               Prepare OS for SQreamDB and Pacemaker
