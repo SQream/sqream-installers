@@ -1938,6 +1938,7 @@ case $key in
     cd .. ;
     sudo rm -rf sqream-temp;
     sudo pcs cluster stop --all;
+    sudo chown sqream:sqream /etc/sqream/*;
     start_pcs;
     summary;    
 logit "SQream Install successfully"
@@ -1967,6 +1968,7 @@ logit "SQream Install successfully"
     advance_configuration;
     cd .. ;
     sudo rm -rf sqream-temp;
+    sudo chown sqream:sqream /etc/sqream/*;
     summary;
 logit "SQream Install successfully"
   shift;
