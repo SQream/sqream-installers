@@ -509,7 +509,8 @@ RAM_GB=$(expr $RAM_MB / 1024)
 global_limitQueryMemoryGB=$((RAM_GB * 90 / 100 ))
 number_of_workers=$(ls -dq /etc/sqream/*sqream*-service.conf | wc -l)
 limitQueryMemoryGB=$((global_limitQueryMemoryGB / number_of_workers))
-spoolMemoryGB=$(($limitQueryMemoryGB * 80 / 100 ))
+#spoolMemoryGB=$(($limitQueryMemoryGB * 80 / 100 ))
+spoolMemoryGB=$(($limitQueryMemoryGB - 10 ))
 cudaMemQuota=$(cat /etc/sqream/sqream${i}_config.json | grep cudaMemQuota)
 for i in $(seq 1 ${number_of_workers}); do
 config_file="/etc/sqream/sqream${i}_config.json"
@@ -761,8 +762,8 @@ fi
 global_limitQueryMemoryGB=$((RAM_GB * 90 / 100 ))
 number_of_workers=$(ls -dq /etc/sqream/*sqream*-service.conf | wc -l)
 limitQueryMemoryGB=$((global_limitQueryMemoryGB / number_of_workers))
-spoolMemoryGB=$(($limitQueryMemoryGB * 80 / 100 ))
-#cudaMemQuota=$(cat /etc/sqream/sqream${i}_config.json | grep cudaMemQuota)
+#spoolMemoryGB=$(($limitQueryMemoryGB * 80 / 100 ))
+spoolMemoryGB=$(($limitQueryMemoryGB - 10 ))
 for i in $(seq 1 ${number_of_workers}); do
 config_file="/etc/sqream/sqream${i}_config.json"
 sed -i "s/\"limitQueryMemoryGB\": limitQueryMemoryGB,/\"limitQueryMemoryGB\": $limitQueryMemoryGB,/" "$config_file"
@@ -1056,7 +1057,8 @@ fi
 global_limitQueryMemoryGB=$((RAM_GB * 95 / 100 ))
 number_of_workers=$(ls -dq /etc/sqream/*sqream*-service.conf | wc -l)
 limitQueryMemoryGB=$((global_limitQueryMemoryGB / number_of_workers))
-spoolMemoryGB=$(($limitQueryMemoryGB * 80 / 100 ))
+spoolMemoryGB=$(($limitQueryMemoryGB - 10 ))
+#spoolMemoryGB=$(($limitQueryMemoryGB * 80 / 100 ))
 cudaMemQuota=$(cat /etc/sqream/sqream${i}_config.json | grep cudaMemQuota)
 for i in $(seq 1 ${number_of_workers}); do
 config_file="/etc/sqream/sqream${i}_config.json"
