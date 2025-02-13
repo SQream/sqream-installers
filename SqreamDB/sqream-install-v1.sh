@@ -3678,9 +3678,20 @@ EOF
 ;;
 esac
 sudo systemctl daemon-reload
-sudo systemctl enable --now cbo-backend.service
-sudo systemctl enable --now cbo-client.service
-sudo systemctl enable --now md-service.service
+echo '
+check process cbo-backend with pidfile /var/run/cbo-backend.pid
+start program =  "/usr/bin/systemctl start cbo-backend.service"
+stop program =  "/usr/bin/systemctl stop cbo-backend.service"
+
+check process cbo-client with pidfile /var/run/cbo-client.pid
+start program =  "/usr/bin/systemctl start cbo-client.service"
+stop program =  "/usr/bin/systemctl stop cbo-client.service"
+
+check process md-service with pidfile /var/run/md-service.pid
+start program =  "/usr/bin/systemctl start md-service.service"
+stop program =  "/usr/bin/systemctl stop md-service.service"
+'| sudo tee -a   /etc/monit.d/monitrc >> /dev/null
+sudo monit reload all
 echo "###################################################################################################"
 echo "CBO installed successfuly"
 echo "###################################################################################################"
