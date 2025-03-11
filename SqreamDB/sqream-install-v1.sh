@@ -3691,6 +3691,8 @@ check process md-service with pidfile /var/run/md-service.pid
 start program =  "/usr/bin/systemctl start md-service.service"
 stop program =  "/usr/bin/systemctl stop md-service.service"
 '| sudo tee -a   /etc/monit.d/monitrc >> /dev/null
+json_file=/etc/sqream/sqream_config_legacy.json
+jq '.developerMode = true  | .useGrpcCompiler = true'   "$json_file" > temp.json && mv temp.json "$json_file"
 sudo monit reload all
 echo "###################################################################################################"
 echo "CBO installed successfuly"
