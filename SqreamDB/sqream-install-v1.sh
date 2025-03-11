@@ -3701,9 +3701,8 @@ sleep 3
 echo "###################################################################################################"
 echo '
 to check CBO services:
-sudo systemctl status cbo-backend.service
-sudo systemctl status cbo-client.service
-sudo systemctl status md-service.service'
+sudo monit start all
+sudo monit status'
 echo "###################################################################################################"
 }
 #################################################################################################################################
