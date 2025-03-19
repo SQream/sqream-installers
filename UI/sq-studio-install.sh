@@ -144,8 +144,10 @@ EOF
 cd ~/sqream-admin
 NODE_ENV=production pm2 start ./server/build/main.js --name=sqream-studio -- start --config-location=/etc/sqream/sqream-admin-config.json
 sudo chown -R $user:$user /etc/sqream
+echo "#################################################################################################################"
 pm2 startup
-sudo env PATH=$PATH:/usr/bin /usr/local/lib/node_modules/pm2/bin/pm2 startup systemd -u sqream --hp /home/sqream
+echo "Please run this so PM2 will work in startup"
+echo "#################################################################################################################"
 pm2 save
 pm2 list
 echo -e "
@@ -210,8 +212,10 @@ sudo chown -R $user:$user /etc/sqream
 cd ~/sqream-admin
 NODE_ENV=production pm2 start ./server/build/main.js --name=sqream-studio -- start --config-location=/etc/sqream/sqream-admin-config.json
 pm2 save
+echo "#################################################################################################################"
 pm2 startup
-sudo env PATH=$PATH:/usr/bin /usr/local/lib/node_modules/pm2/bin/pm2 startup systemd -u sqream --hp /home/sqream
+echo "Please run this so PM2 will work in startup"
+echo "#################################################################################################################"
 pm2 save
 pm2 list
 echo -e "
