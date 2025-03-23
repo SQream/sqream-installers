@@ -539,6 +539,7 @@ cat <<EOF | tee /etc/sqream/sqream_config_legacy.json > /dev/null
     "useClientLog": true,
     "useMetadataServer": true,
     "spoolMemoryGB": $spoolMemoryGB,
+    "queryTimeoutMinutes": 0,
     "waitForClientSeconds": 18000
 }
 EOF
