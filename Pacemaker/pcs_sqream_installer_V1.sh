@@ -88,6 +88,7 @@ op start timeout=60s on-fail=restart \
 op stop timeout=60s on-fail=ignore \
 op monitor on-fail=restart interval=20s role=Started 
 sudo pcs constraint location SQREAM_${nodeid}_${current_worker_id} prefers $join_hostname 
+sudo pcs constraint order start lb_group then start SQREAM_${nodeid}_${current_worker_id}
 current_worker_id=$((current_worker_id + 1))
 i=$((i + 1))
 done
