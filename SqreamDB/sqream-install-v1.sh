@@ -2928,12 +2928,23 @@ logit "Success: create_service_config_template_file"
 upgrade_storage()
 {
 logit "Started upgrade_storage"
+if [ -f  /etc/sqream/sqream1_config.json ];then
 current_cluster=$(cat /etc/sqream/sqream1_config.json | grep 'cluster' | sed -e 's/.*://' | sed -e 's/[" ]*//' | sed -e 's/["],$//')
+else
+echo "Enter Your SQream Storage Path: "
+echo "##########################################################################################################################################"
+read current_cluster
+while [ -z "$current_cluster" ]
+do      printf 'Enter Your SQream Storage Path: '
+        read -r current_cluster
+        [ -z "$current_cluster" ] && echo 'SQream Storage Path cannot be empty; try again.'
+ done
+ fi
 clear
 echo "##########################################################################################################################################"
 echo "Your Current Storage is $current_cluster"
 echo "##########################################################################################################################################"
-echo "Please Wait, Upgrading."      
+echo "Please Wait, Upgrading."
 echo "##########################################################################################################################################"
 /usr/local/sqream/bin/upgrade_storage ${current_cluster}
 sudo chown -R sqream:sqream ${current_cluster}
