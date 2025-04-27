@@ -529,7 +529,7 @@ logit "Started install_legacy"
 cat <<EOF | tee /etc/sqream/sqream_config_legacy.json > /dev/null
 {
 "diskSpaceMinFreePercent": 1,
-    "DefaultPathToLogs": "${cluster}/tmp_logs/",
+    "DefaultPathToLogs": "${cluster}/logs/",
     "enableLogDebug": false,
     "insertCompressors": 8,
     "insertParsers": 8,
@@ -816,7 +816,7 @@ logit "Started generate_config_files_pcs"
     gpu_id=$1
     #worker_count=$2
     i=0
-    #DefaultPathToLogs=$cluster/tmp_logs
+    
         sport=5099
         port=4999
         while [ $i -lt $worker_count_gpu ]; do
@@ -1533,7 +1533,7 @@ logit "Started generate_config_files"
     gpu_id=$1
     worker_count=$2
     i=0    
-    #DefaultPathToLogs=$cluster/tmp_logs
+    
         sport=5099
         port=4999
         while [ $i -lt $worker_count ]; do
