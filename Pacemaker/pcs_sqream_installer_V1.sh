@@ -1002,7 +1002,7 @@ echo "                  You have choose SQreamDB HA , Please insert hacluster us
 echo "##########################################################################################################################################"
 PCS=$(pcs --version | cut -d . -f2)
 sudo pcs cluster destroy --all &> /dev/null
-if [ ${PCS} -eq 10 ]
+if [ ${PCS} -ge 10 ]
    then     
    sudo pcs host auth $(hostname) addr=${machineip} ${slave_hostname} addr=${slaveip}
    sudo pcs cluster setup sqreamdb $(hostname) addr=$machineip $slave_hostname addr=$slaveip
