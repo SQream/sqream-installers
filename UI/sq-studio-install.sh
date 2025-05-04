@@ -23,11 +23,19 @@ curl -sL https://rpm.nodesource.com/setup_16.x | sudo -E bash -
 sudo yum install -y nodejs
 sudo yum install npm -y
 sudo npm i -g pm2
-fi
-if [[ $(echo $LinuxDistro|grep '8') ]];then
+elif [[ $(echo $LinuxDistro|grep '8') ]];then
 sudo yum module install nodejs:16 -y
 sudo npm install pm2 -g && pm2 update 
-fi
+elif [[ $(echo $LinuxDistro|grep '9') ]];then
+    echo "Detected RHEL 9.x"
+    sudo dnf module enable nodejs:18 -y || true
+    sudo dnf module install -y nodejs:18
+    sudo npm install -g pm2
+    pm2 update
+  else
+    echo "Unsupported OS version: $LinuxDistro"
+    exit 1
+  fi
 }
 #################################### Check  OS ersion #############################################################################################
 check_os_version () {
@@ -38,10 +46,18 @@ if [[ $(echo $LinuxDistro|grep '7') ]];then
    check_requirements
    verify_and_extract_el7
    
-else
+elif [[ $(echo $LinuxDistro|grep '8') ]];then
    echo "OS Version RHEL 8"
    check_requirements
    verify_and_extract_el8
+elif [[ $(echo $LinuxDistro|grep '9') ]];then
+echo "OS Version RHEL 9"
+   check_requirements
+   verify_and_extract_el8
+else
+    echo "Unsupported OS version: $LinuxDistro"
+    exit 1
+
 fi
 }
 ################################ Upgrade SQream Studio ###########################################################################################
