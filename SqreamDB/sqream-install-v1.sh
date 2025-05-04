@@ -17,23 +17,27 @@ fi
 ############################## Prepare_for_SQream ############################################################################################
 Prepare_for_SQream () {
 logit "Started Prepare_for_SQream "
-IS_CENTUS=$(echo ${SQ_OS_NAME} | grep CentOS | wc -l)
-
-if [ ${IS_CENTUS} -eq 1 ]
-   then
+LinuxDistro=$(cat /etc/os-release |grep VERSION_ID |cut -d "=" -f2)
+if [[ $(echo $LinuxDistro|grep '7') ]];then
         logit "Prepare SQream for RHEL 7"
         sudo rpm -Uvh http://dl.fedoraproject.org/pub/epel/epel-release-latest-7.noarch.rpm
         sudo yum install ntp pciutils monit zlib-devel openssl-devel kernel-devel-$(uname -r) kernel-headers-$(uname -r) gcc net-tools wget jq libffi-devel gdbm-devel tk-devel xz-devel sqlite-devel readline-devel bzip2-devel ncurses-devel zlib-devel -y
-        fi
-
-   if [ ${IS_CENTUS} -eq 0 ]
-   then
+        
+   elif [[ $(echo $LinuxDistro|grep '8') ]];then   
     logit "Prepare SQream for RHEL 8"
     sudo subscription-manager repos --enable codeready-builder-for-rhel-8-x86_64-rpms
     sudo subscription-manager repos --enable rhel-8-for-x86_64-highavailability-rpms
     sudo dnf install -y https://dl.fedoraproject.org/pub/epel/epel-release-latest-8.noarch.rpm
     sudo dnf install chrony pciutils monit zlib-devel openssl-devel kernel-devel-$(uname -r) kernel-headers-$(uname -r) gcc net-tools wget jq libffi-devel xz-devel ncurses-compat-libs libnsl gdbm-devel tk-devel sqlite-devel readline-devel texinfo -y 
-
+elif [[ $(echo $LinuxDistro|grep '9') ]];then
+    logit "Prepare SQream for RHEL 9"
+    sudo subscription-manager repos --enable codeready-builder-for-rhel-9-x86_64-rpms
+    sudo subscription-manager repos --enable rhel-9-for-x86_64-highavailability-rpms
+    sudo dnf install -y https://dl.fedoraproject.org/pub/epel/epel-release-latest-9.noarch.rpm
+    sudo dnf install chrony pciutils monit zlib-devel openssl-devel kernel-devel-$(uname -r) kernel-headers-$(uname -r) gcc net-tools wget jq libffi-devel xz-devel ncurses-compat-libs libnsl gdbm-devel tk-devel sqlite-devel readline-devel texinfo -y
+    else
+    echo "Unsupported OS version: $LinuxDistro"
+    exit 1
    fi
 }
 ################################ re_meta_copy_files ############################################################################################
