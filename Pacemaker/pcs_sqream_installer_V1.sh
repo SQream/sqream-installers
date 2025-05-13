@@ -2105,7 +2105,7 @@ cd ..
 sudo rm -rf sqream-temp;
  exit;shift;
     ;;  
--join|--pcs_node_join)    
+-join_gpu|--pcs_node_join)    
     shift;
     pcs_node_join
     exit;shift;
