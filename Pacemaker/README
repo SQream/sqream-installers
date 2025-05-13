@@ -23,7 +23,7 @@
 -metadata,              Install SQream DB Metadata only for PCS
                         example: sudo ./pcs_sqream_installer_V1.sh -metadata
 ---------------------------------------------------------------------------------------------------
--join,                  Join New Node to Pacemaker Cluster
+-join_gpu,                  Join New Node to Pacemaker Cluster
                         example: sudo ./pcs_sqream_installer_V1.sh -join
 ---------------------------------------------------------------------------------------------------
 -join_metadata,         Join SQreamDB Metadata Server only for Pacemaker
