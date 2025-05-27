@@ -1,4 +1,14 @@
 #!/bin/bash
+#Variables
+DATE=$(date +%d-%m-%Y_%H%M%S)
+export red="\033[1;31m"
+export green="\033[1;32m"
+export yellow="\033[1;33m"
+export blue="\033[1;34m"
+export purple="\033[1;35m"
+export cyan="\033[1;36m"
+export grey="\033[0;37m"
+export reset="\033[m"
 ############################################ Log File #################################################################
 LOG_FILE="/tmp/sqream-sqdiag.log"
 sudo rm -rf $LOG_FILE
@@ -20,25 +30,48 @@ fi
 logit "######################################################################################"
 logit "Success: run_with_sudo"
 logit "######################################################################################"
-
 }
 ################################################################################################################################
 run_with_sudo
-logit "#############################################################################"
-logit "Machine Hostname:$(hostname)"
-logit "#############################################################################"
-#Variables
-DATE=$(date +%d-%m-%Y_%H%M%S)
-export red="\033[1;31m"
-export green="\033[1;32m"
-export yellow="\033[1;33m"
-export blue="\033[1;34m"
-export purple="\033[1;35m"
-export cyan="\033[1;36m"
-export grey="\033[0;37m"
-export reset="\033[m"
-
-
+################################################################################################################################
+sqream_user () {
+if ! id "sqream" &>/dev/null; then
+echo "##################################################################"
+logit "User sqream not exist"
+echo "User sqream not exist"
+echo "##################################################################"
+echo "Script continues..."
+logit "Script continues..."
+sleep 4
+fi
+}
+sqream_user
+################################################################################################################################
+echo "######################################################################################"
+echo "checking user shell"
+logit "checking user shell"
+if [ -n "$SUDO_USER" ]; then
+  echo "Originally invoked by: $SUDO_USER (UID: $SUDO_UID)"
+fi
+echo "######################################################################################"
+sleep 1
+if  [ $(getent passwd "$SUDO_USER" | cut -d: -f7) = /bin/bash ]; then
+echo "######################################################################################"
+echo "current shell is ok  $SHELL"
+logit "current shell is ok  $SHELL"
+echo "######################################################################################"
+sleep 2
+else
+echo "######################################################################################"
+echo "this is current shell: $(getent passwd "$SUDO_USER" | cut -d: -f7)"
+echo "SQream installer cannot work with this shell"
+echo "Please change sqream user shell to /bin/bash"
+logit "SQream installer cannot work with this shell"
+logit "Please change sqream user shell to /bin/bash"
+exit
+echo "######################################################################################"
+sleep 2
+fi
 ########################################Required Cuda Drivers to Start ################################################
 clear
 echo "######################################################################################"
