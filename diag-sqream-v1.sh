@@ -52,6 +52,7 @@ echo "checking user shell"
 logit "checking user shell"
 if [ -n "$SUDO_USER" ]; then
   echo "Originally invoked by: $SUDO_USER (UID: $SUDO_UID)"
+  logit "Originally invoked by: $SUDO_USER (UID: $SUDO_UID)"
 fi
 echo "######################################################################################"
 sleep 1
