@@ -306,13 +306,43 @@ if ! rpm -qa | grep pcs &> /dev/null
 then
 echo -e "${green}+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++${reset}"
 echo -e "Pacamaker is not required when working in Standalone SQreamDB"
-echo -e "Package (Pacamaker) ${red}NOT FOUND"
+echo -e "Package (pcs) ${red}NOT FOUND"
+logit "Fail: Package (pcs) NOT FOUND"
 echo -e "${green}+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++${reset}"
 else
 echo -e "${green}+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++${reset}"
-echo -e "Package (Pacamaker) ${green}PASSED"
-logit "Success: Package (Pacamaker) PASSED"
+echo -e "Package (pcs) ${green}PASSED"
+logit "Success: Package (pcs) PASSED"
 echo -e "${green}+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++${reset}"
+sudo systemctl start pcsd.service  &> /dev/null
+sudo systemctl enable pcsd.service &> /dev/null
+if ! rpm -qa | grep corosync &> /dev/null
+then
+echo -e "${green}+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++${reset}"
+echo -e "Package (Corosync) ${red}NOT FOUND"
+echo -e "Package (Corosync) is Required for HA Cluster"
+logit "Fail: Package (Corosync) NOT FOUND"
+echo -e "${green}+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++${reset}"
+else 
+echo -e "${green}+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++${reset}"
+echo -e "Package (Corosync) ${green}PASSED"
+logit "Success: Package (Corosync) PASSED"
+sudo systemctl disable corosync.service  &> /dev/null
+echo -e "${green}+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++${reset}"
+if ! rpm -qa | grep pacemaker &> /dev/null
+then
+echo -e "${green}+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++${reset}"
+echo -e "Package (pacemaker) ${red}NOT FOUND"
+echo -e "Package (pacemaker) is Required for HA Cluster"
+logit "Fail: Package (pacemaker) NOT FOUND"
+echo -e "${green}+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++${reset}"
+else
+echo -e "${green}+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++${reset}"
+echo -e "Package (pacemaker) ${green}PASSED"
+logit "Success: Package (pacemaker) PASSED"
+echo -e "${green}+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++${reset}"
+fi
+fi
 fi
 ######################################## Install required packages for SQREAM ?################################################
 sleep 5
