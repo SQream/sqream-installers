@@ -1830,7 +1830,6 @@ fi
 * )
 echo "Stay with Current Metadata Server"
 sleep 2
-if [ $machineip = $current_metadata ]; then
 metadataServerIp=$current_metadata
 logit "Success: Metadata Server will be Local"
 install_sqream_serverpicker_service
@@ -1839,17 +1838,8 @@ create_service_config_template_file
 install_sqream_services
 reconfig_monit_service_health_aws
 limitQuery_aws
-else 
 echo "This Server will be connected to METADATA SERVER $metadataServerIp"
 logit "Success: This Server will be connected to METADATA SERVER $metadataServerIp"
-sleep 2
-install_sqream_serverpicker_service
-install_sqream_serverpicker
-create_service_config_template_file
-install_sqream_services
-reconfig_monit_service_health_no_meta_aws
-limitQuery_no_meta_aws
-fi
 ;;
 esac
 logit "Success advance reconfiguration AWS"
