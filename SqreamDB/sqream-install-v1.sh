@@ -1718,12 +1718,14 @@ do	printf 'Please Enter Current Host IP Address: '
 	[ -z "$machineip" ] && echo 'MachineIP cannot be empty; try again.'
 done
 logit "Success: You choose this IP address $machineip"
+echo "$(hostname -i) $machineip " | sudo tee -a  /etc/hosts
 ;;
         * )
 echo "Stay with Current IP address is $current_ip"
 logit "Success: Stay with Current IP address is $current_ip"
 echo "##########################################################################################################################################"
 machineip=$current_ip
+echo "$(hostname -i) $current_ip " | sudo tee -a  /etc/hosts
 ;;
 esac
 echo "##########################################################################################################################################"
