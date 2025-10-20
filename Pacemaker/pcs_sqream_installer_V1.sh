@@ -680,6 +680,20 @@ check_tar_file()
      logit "ERROR: archeive file '$TARFILE' is NOT accessible, exiting..."
      exit -1
   fi
+  if [ -d "$TARFILE" ]; then
+        echo "ERROR: '$TARFILE' is a directory, not a file." 
+        logit "ERROR: '$TARFILE' is a directory, not a file."
+        exit -1
+    fi
+    if echo "$TARFILE" | grep -qE "tar.gz" ; then
+        echo "SUCCESS: '$TARFILE' is a recognized tar archive type."
+        echo "File Type: $TARFILE"
+      logit "Success: check TAR file"   
+    else
+        echo "FAIL: '$TARFILE' is NOT a tar archive."    
+        exit -1
+        logit "ERROR: archeive file '$TARFILE' is NOT a tar archive."
+        fi
   logit "Success: check TAR file"
 }
 ##################################### verify_and_extract #######################################################################################
