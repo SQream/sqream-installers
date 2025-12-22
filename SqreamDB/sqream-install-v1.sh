@@ -18,11 +18,14 @@ fi
 Prepare_for_SQream () {
 logit "Started Prepare_for_SQream "
 LinuxDistro=$(cat /etc/os-release |grep VERSION_ID |cut -d "=" -f2)
+#IS_CENTUS=$(echo ${SQ_OS_NAME} | grep CentOS | wc -l)
+
 if [[ $(echo $LinuxDistro|grep '7') ]];then
         logit "Prepare SQream for RHEL 7"
         sudo rpm -Uvh http://dl.fedoraproject.org/pub/epel/epel-release-latest-7.noarch.rpm
         sudo yum install ntp pciutils monit zlib-devel openssl-devel kernel-devel-$(uname -r) kernel-headers-$(uname -r) gcc net-tools wget jq libffi-devel gdbm-devel tk-devel xz-devel sqlite-devel readline-devel bzip2-devel ncurses-devel zlib-devel -y
         
+
    elif [[ $(echo $LinuxDistro|grep '8') ]];then   
     logit "Prepare SQream for RHEL 8"
     sudo subscription-manager repos --enable codeready-builder-for-rhel-8-x86_64-rpms
@@ -30,8 +33,7 @@ if [[ $(echo $LinuxDistro|grep '7') ]];then
     sudo dnf install -y https://dl.fedoraproject.org/pub/epel/epel-release-latest-8.noarch.rpm
     sudo dnf install chrony pciutils monit zlib-devel openssl-devel kernel-devel-$(uname -r) kernel-headers-$(uname -r) gcc net-tools wget jq libffi-devel xz-devel ncurses-compat-libs libnsl gdbm-devel tk-devel sqlite-devel readline-devel texinfo -y 
 elif [[ $(echo $LinuxDistro|grep '9') ]];then
-    logit "Prepare SQream for RHEL 9"
-    sudo subscription-manager repos --enable codeready-builder-for-rhel-9-x86_64-rpms
+sudo subscription-manager repos --enable codeready-builder-for-rhel-9-x86_64-rpms
     sudo subscription-manager repos --enable rhel-9-for-x86_64-highavailability-rpms
     sudo dnf install -y https://dl.fedoraproject.org/pub/epel/epel-release-latest-9.noarch.rpm
     sudo dnf install chrony pciutils monit zlib-devel openssl-devel kernel-devel-$(uname -r) kernel-headers-$(uname -r) gcc net-tools wget jq libffi-devel xz-devel ncurses-compat-libs libnsl gdbm-devel tk-devel sqlite-devel readline-devel texinfo -y
@@ -39,6 +41,685 @@ elif [[ $(echo $LinuxDistro|grep '9') ]];then
     echo "Unsupported OS version: $LinuxDistro"
     exit 1
    fi
+}
+#################################### Function advance_configuration ############################################################################
+advance_configuration_mig () {
+logit "Started: advance_configuration_mig"
+clear
+echo "#######################################################################################################"
+echo "Welcome to SQream MIG Installation"
+echo "#######################################################################################################"
+hostip=$(hostname -I)
+echo "Please Enter Current Host IP Address, Select from below IP addresses list"
+echo "$hostip"
+echo "Please choose the relevant IP"
+echo "Or use 127.0.0.1 as local host"
+echo "#######################################################################################################"
+read machineip
+while [ -z "$machineip" ]
+do	printf 'Please Enter Current Host IP Address: '
+	read -r machineip
+	[ -z "$machineip" ] && echo 'MachineIP cannot be empty; try again.'
+done
+echo "#######################################################################################################"
+read -p "Will this Server host METADATA SERVER service ? (Y/n) " Yn
+echo "#######################################################################################################"
+case $Yn in
+n ) 
+echo "#######################################################################################################"
+echo "Please enter the METADATA SERVER IP Address"
+read metadataServerIp
+echo "#######################################################################################################"
+while [ -z "$metadataServerIp" ]
+do	printf 'Please Enter metadataServerIp IP Address: '
+	read -r metadataServerIp
+	[ -z "$metadataServerIp" ] && echo 'metadataServerIp cannot be empty; try again.'
+done
+echo "This Server will be connected to METADATA SERVER $metadataServerIp"
+logit "Success: This Server will be connected to METADATA SERVER $metadataServerIp"
+echo "#######################################################################################################"
+echo "Enter Your SQream Storage Path: "
+echo "#######################################################################################################"
+read cluster
+while [ -z "$cluster" ]
+do	printf 'Enter Your SQream Storage Path: '
+	read -r cluster
+	[ -z "$cluster" ] && echo 'SQream Storage Path cannot be empty; try again.'
+ done
+logit "Success: Storage Path is $cluster"
+logit "Success: advance_configuration"
+create_storage
+permission_sqream
+install_sqream_serverpicker_service 
+install_sqream_serverpicker
+create_service_config_template_file_mig
+install_sqream_services_mig
+check_monit_service_health_no_meta_mig
+limitQuery_no_meta_mig
+;;
+* ) 
+echo "Continue with Standard SQream Installation"
+logit "Success: Continue with Standard SQream Installation"
+metadataServerIp=$machineip
+echo "#######################################################################################################"
+echo "Enter Your SQream Storage Path: "
+echo "#######################################################################################################"
+read cluster
+while [ -z "$cluster" ]
+do	printf 'Enter Your SQream Storage Path: '
+	read -r cluster
+	[ -z "$cluster" ] && echo 'SQream Storage Path cannot be empty; try again.'
+done
+logit "Success: Storage Path is $cluster"
+logit "Success: function advance_configuration"
+create_storage
+permission_sqream
+install_sqream_serverpicker_service 
+install_sqream_serverpicker
+create_service_config_template_file_mig
+install_sqream_services_mig
+check_monit_service_health_mig
+limitQuery_mig
+ ;;
+esac
+}
+##################################### verify_and_extract #######################################################################################
+verify_and_extract_mig()
+{
+logit "Started verify_and_extract"
+#clear
+echo "################################################################################"
+echo "Starting SQreamDB MIG installation Please wait While Extracting TAR file" 
+echo "################################################################################"
+if
+[ -d /tmp/sqreampkg ];then
+rm -rf /tmp/sqreampkg > /dev/null
+mkdir -p /tmp/sqreampkg > /dev/null
+tar -C /tmp/sqreampkg/ -zxf $TARFILE --checkpoint=.1000
+echo " Done, Continue with Installation "
+logit "Success: /tmp/sqreampkg  deleted, Continue with Installation "
+else
+mkdir -p /tmp/sqreampkg > /dev/null
+logit "Success: /tmp/sqreampkg created"
+tar -C /tmp/sqreampkg/ -zxf $TARFILE --checkpoint=.1000
+echo "################################################################################"
+echo " Done, Continue with Installation "
+echo "################################################################################"
+fi
+logit "Success: verify_and_extract"
+}
+################################# Function to generate and update config files Monit ########################################################
+generate_config_files_monit_mig() {
+logit "Started generate_config_files_monit_mig"
+    gpu_id=$1  
+    worker_count=$2
+    i=0    
+        sport=5099
+        port=4999
+        while [ $i -lt $worker_count ]; do
+        ##################################################################################################
+        # Copy template files ############################################################################
+        ##################################################################################################
+        config_file="sqream${current_worker_id}_config.json"
+        cp default_config.json "$config_file"
+        config_service_file="sqream${current_worker_id}-service.conf"
+	      cp default_service.conf "$config_service_file"
+        service_file="sqream${current_worker_id}.service"
+        cp default.service "$service_file"
+        ##################################################################################################
+        # Update "gpu" and "cudaMemQuota" in the config file #############################################
+        ##################################################################################################
+        #sed -i "s/\"gpu\": 0,/\"gpu\": $gpu_id,/" "$config_file"
+        #sed -i "s/\"cudaMemQuota\": 90,/\"cudaMemQuota\": $new_cuda,/" "$config_file"
+        sed -i "s|@regular_port@|$((port + ${current_worker_id} ))|g" "$config_file"
+        sed -i "s|@sslport@|$((sport + ${current_worker_id} ))|g" "$config_file"
+        sed -i "s|@sqream_00@|sqream_0${current_worker_id}|g" "$config_file"
+        sed -i "s/\SERVICE_NAME\=sqream/\SERVICE_NAME\=sqream$current_worker_id/" "$config_service_file"
+        sed -i "s|@sqream@|sqream${current_worker_id}.log|g" "$config_service_file"
+        sed -i "s|@sqreamX-service.conf@|sqream${current_worker_id}-service.conf|g" "$service_file"
+                ######################### Monit X times###########################################################
+        echo "#SQREAM$current_worker_id-START" >> /etc/monit.d/monitrc
+        echo "check process sqream$current_worker_id with pidfile /var/run/sqream$current_worker_id.pid" >> /etc/monit.d/monitrc
+        echo start program = ' "/usr/bin/systemctl start 'sqream$current_worker_id'"' >> /etc/monit.d/monitrc
+        echo stop program = ' "/usr/bin/systemctl stop 'sqream$current_worker_id'"' >> /etc/monit.d/monitrc
+        echo "#SQREAM$current_worker_id-END" >> /etc/monit.d/monitrc
+        ## Add Varibales X times##########################################################################
+        current_worker_id=$((current_worker_id + 1))
+        i=$((i + 1))
+        done
+        logit "Success: generate_config_files_monit_mig" 
+        install_legacy_mig
+        install_metadata
+        #sudo systemctl enable monit > /dev/null 2&>1
+        #sudo monit reload > /dev/null         
+        #################################################################################################    
+        
+}
+############################################## generate_config_files ############################################################################
+generate_config_files_mig() {
+logit "Started generate_config_files_mig"
+    gpu_id=$1
+    worker_count=$2
+    i=0    
+    
+        sport=5099
+        port=4999
+        while [ $i -lt $worker_count ]; do
+        ##################################################################################################
+        # Copy template files ############################################################################
+        ##################################################################################################
+        config_file="sqream${current_worker_id}_config.json"
+        cp default_config.json "$config_file"
+        config_service_file="sqream${current_worker_id}-service.conf"
+	      cp default_service.conf "$config_service_file"
+        service_file="sqream${current_worker_id}.service"
+        cp default.service "$service_file"
+        ##################################################################################################
+        # Update "gpu" and "cudaMemQuota" in the config file #############################################
+        ##################################################################################################
+        sed -i "s/\"gpu\": 0,/\"gpu\": $gpu_id,/" "$config_file"
+        sed -i "s/\"cudaMemQuota\": 90,/\"cudaMemQuota\": $new_cuda,/" "$config_file"
+        sed -i "s|@regular_port@|$((port + ${current_worker_id} ))|g" "$config_file"
+        sed -i "s|@sslport@|$((sport + ${current_worker_id} ))|g" "$config_file"
+        sed -i "s|@sqream_00@|sqream_0${current_worker_id}|g" "$config_file"
+        sed -i "s/\SERVICE_NAME\=sqream/\SERVICE_NAME\=sqream$current_worker_id/" "$config_service_file"
+        sed -i "s|@sqream@|sqream${current_worker_id}.log|g" "$config_service_file"
+        sed -i "s|@sqreamX-service.conf@|sqream${current_worker_id}-service.conf|g" "$service_file"
+        ######################### Monit X times###########################################################
+        echo "#SQREAM$current_worker_id-START" >> /etc/sqream/monitrc
+                echo "check process sqream$current_worker_id with pidfile /var/run/sqream$current_worker_id.pid" >> /etc/sqream/monitrc
+        echo start program = ' "/usr/bin/systemctl start 'sqream$current_worker_id'"' >> /etc/sqream/monitrc
+        echo stop program = ' "/usr/bin/systemctl stop 'sqream$current_worker_id'"' >> /etc/sqream/monitrc
+        echo "#SQREAM$current_worker_id-END" >> /etc/sqream/monitrc
+        ## Add Varibales X times##########################################################################
+        
+        current_worker_id=$((current_worker_id + 1))
+        i=$((i + 1))
+        done
+        install_legacy_mig
+        install_metadata
+        ################################################################################################# 
+        logit "Success: generate_config_files_mig"    
+}
+#################### formula_advance #################################################################################################################
+formula_advance_mig () {
+logit "Started: formula_advance_mig"
+num_gpus=$(nvidia-smi --query-gpu=name --format=csv,noheader | wc -l)
+echo "#######################################################################################################"
+echo "Number of GPUs: $num_gpus"
+migs=$(nvidia-smi mig -lgipp | wc -l)
+
+echo "#######################################################################################################"
+echo "Total Number of SQream Workers : $migs"
+worker_count_gpu=$migs
+create_config_template_file
+generate_config_files "0" "$worker_count_gpu"    
+
+logit "Success: formula_advance_mig"
+}
+
+##################################### Function formula_advance #################################################################################
+formula_advance_monit_mig () {
+logit "Started: formula_advance_monit_mig"
+num_gpus=$(nvidia-smi --query-gpu=name --format=csv,noheader | wc -l)
+echo "#######################################################################################################"
+echo "Number of GPUs: $num_gpus"
+migs=$(nvidia-smi mig -lgipp | wc -l)
+echo "#######################################################################################################"
+echo "Total Number of SQream Workers : $migs"
+worker_count_gpu=$migs
+echo "#######################################################################################################"
+    current_worker_id=1
+    logit "Success: formula_advance_monit_mig"  
+    create_config_template_file_mig
+    gpu_id=0
+    generate_config_files_monit_mig "$gpu_id" "$worker_count_gpu"   
+}
+###### check_monit_service_health #########################################################################################################
+check_monit_service_health_mig () {
+logit "Started check_monit_service_health_mig"
+if [ -f  /usr/lib/systemd/system/monit.service ] &> /dev/null
+then
+#clear
+echo "###############################################################################"
+echo "Monit is installed."
+logit "Success: check_monit_service_health_mig"
+monit
+formula_advance_monit_mig
+echo "###############################################################################"
+sleep 2
+else
+#clear
+echo "###############################################################################"
+echo "Monit is not installed."
+logit "Warnning: Monit is not installed Continue install without Monit"
+echo "###############################################################################"
+echo "Continue install without Monit"
+echo "###############################################################################"
+echo "You will need to start all SQream services manually"
+echo "###############################################################################"
+logit "Success: check_monit_service_health_mig"
+sleep 2
+monit_backup
+formula_advance_mig
+fi
+}
+############################# limitQuery #####################################################################################################
+limitQuery_mig () {
+logit "Started limitQuery_mig"
+if [[ $new_limitQueryMemoryGB -ge 1 ]];then
+logit "Success : limitQuery check"
+custom_limitQuery
+else
+logit "Success : limitQuery_mig"
+default_limitQuery_mig
+fi
+}
+################################ default_limitQuery ###########################################################################################
+default_limitQuery_mig () {
+logit "Started:  default_limitQuery_mig"
+copy_files
+RAM_KB=$(grep MemTotal /proc/meminfo | awk '{print $2}')
+RAM_MB=$(expr $RAM_KB / 1024)
+GRAM_GB=$(expr $RAM_MB / 1024)
+if [ $GRAM_GB -ge 512 ] ;then
+RAM_GB=$(expr $GRAM_GB - 50)
+else
+RAM_GB=$(expr $RAM_MB / 1024)
+fi
+global_limitQueryMemoryGB=$((RAM_GB * 90 / 100 ))
+number_of_workers=$(ls -dq /etc/sqream/*sqream*-service.conf | wc -l)
+limitQueryMemoryGB=$((global_limitQueryMemoryGB / number_of_workers))
+spoolMemoryGB=$(($limitQueryMemoryGB - 10 ))
+cudaMemQuota=$(cat /etc/sqream/sqream${i}_config.json | grep cudaMemQuota)
+for i in $(seq 1 ${number_of_workers}); do
+config_file="/etc/sqream/sqream${i}_config.json"
+sed -i "s/\"limitQueryMemoryGB\": limitQueryMemoryGB,/\"limitQueryMemoryGB\": $limitQueryMemoryGB,/" "$config_file"       
+done
+logit "Success:  default_limitQuery_mig"        
+install_legacy_mig
+}
+########################## limitQuery no meta ###############################################################################################
+limitQuery_no_meta_mig () {
+copy_files
+RAM_KB=$(grep MemTotal /proc/meminfo | awk '{print $2}')
+RAM_MB=$(expr $RAM_KB / 1024)
+GRAM_GB=$(expr $RAM_MB / 1024)
+if [ $GRAM_GB -ge 512 ] ;then
+RAM_GB=$(expr $GRAM_GB - 50)
+else
+RAM_GB=$(expr $RAM_MB / 1024)
+fi
+global_limitQueryMemoryGB=$((RAM_GB * 95 / 100 ))
+number_of_workers=$(ls -dq /etc/sqream/*sqream*-service.conf | wc -l)
+limitQueryMemoryGB=$((global_limitQueryMemoryGB / number_of_workers))
+spoolMemoryGB=$(($limitQueryMemoryGB - 10 ))
+cudaMemQuota=$(cat /etc/sqream/sqream${i}_config.json | grep cudaMemQuota)
+for i in $(seq 1 ${number_of_workers}); do
+config_file="/etc/sqream/sqream${i}_config.json"
+sed -i "s/\"limitQueryMemoryGB\": limitQueryMemoryGB,/\"limitQueryMemoryGB\": $limitQueryMemoryGB,/" "$config_file"       
+done
+logit "Success:  default_limitQuery"        
+install_legacy_mig
+} 
+################################ Function to Create SQream Legacy Conf File #####################################################################
+install_legacy_mig()
+{
+logit "Started install_legacy_mig"
+cat <<EOF | tee /etc/sqream/sqream_config_legacy.json > /dev/null
+{
+"diskSpaceMinFreePercent": 1,
+    "DefaultPathToLogs": "${cluster}/logs/",
+    "enableLogDebug": false,
+    "insertCompressors": 8,
+    "insertParsers": 8,
+    "isUnavailableNode": false,
+    "logBlackList": "webui",
+    "logDebugLevel": 6,
+    "nodeInfoLoggingSec": 60,
+    "useClientLog": true,
+    "useMetadataServer": true,
+    "spoolMemoryGB": $spoolMemoryGB,
+    "queryTimeoutMinutes": 0,
+    "waitForClientSeconds": 18000
+}
+EOF
+logit "Success: install_legacy_mig"
+}
+############################# SQream Config Json ###################################################################
+create_config_template_file_mig(){
+logit "Started: create_config_template_file_mig"
+cat <<EOF | tee default_config.json > /dev/null
+{
+    "cluster": "$cluster",
+    "cudaMemQuota": 96,
+    "gpu": 0,
+    "legacyConfigFilePath": "sqream_config_legacy.json",
+    "licensePath": "/etc/sqream/license.enc",
+    "limitQueryMemoryGB": limitQueryMemoryGB,
+    "machineIP": "$machineip",
+    "metadataServerIp": "$metadataServerIp",
+    "metadataServerPort": 3105,
+    "port": @regular_port@,
+    "instanceId": "@sqream_00@",
+    "portSsl": @sslport@,
+    "initialSubscribedServices": "sqream",
+    "useConfigIP": true
+}
+EOF
+logit "Success: create_config_template_file_mig"
+}
+############################# SQream Servic Config #################################################################
+create_service_config_template_file_mig(){
+logit "Started: create_service_config_template_file_mig"
+echo 'SERVICE_NAME=sqream
+RUN_USER=sqream
+DIR=/usr/local/sqream
+BINDIR=/usr/local/sqream/bin/
+LOGFILE=/var/log/sqream/@sqream@
+
+CUDA_VISIBLE_DEVICES=
+NUMA_NODE=
+' > default_service.conf
+logit "Success: create_service_config_template_file_mig"
+}
+############################# SQream Service.Service ###############################################################
+install_sqream_services_mig(){
+logit "Started: install_sqream_services_mig"
+cat > default.service << 'EOM'
+[Unit]
+After=serverpicker.service
+Description=SQream SQL Server
+Documentation=http://docs.sqream.com/latest/manual/
+
+[Service]
+Type=simple
+EnvironmentFile=/etc/sqream/sqream1-service.conf
+
+# RUN_USER, DIR, SERVICE_NAME, LOGFILE, CUDA_VISIBLE_DEVICES, NUMA_NODE come from the EnvironmentFile
+ExecStart=/bin/su - ${RUN_USER} -c 'export CUDA_VISIBLE_DEVICES=${CUDA_VISIBLE_DEVICES}; source /etc/sqream/sqream_env.sh && exec /usr/bin/numactl --cpunodebind=${NUMA_NODE} --membind=${NUMA_NODE} "${DIR}/bin/sqreamd" -config "/etc/sqream/${SERVICE_NAME}_config.json" &>> "${LOGFILE}"'
+ExecStartPost=/bin/sh -c 'sleep 2; /bin/ps --ppid ${MAINPID} -o pid= > /var/run/${SERVICE_NAME}.pid'
+ExecStop=/bin/sh -c '/bin/kill -9 "$(cat /var/run/${SERVICE_NAME}.pid)"'
+ExecStopPost=/bin/rm -f /var/run/${SERVICE_NAME}.pid
+ExecReload=/bin/sh -c '/bin/kill -s HUP "$(cat /var/run/${SERVICE_NAME}.pid)"'
+
+KillMode=process
+TimeoutSec=30s
+
+[Install]
+WantedBy=multi-user.target
+EOM
+logit "Success: install_sqream_services_migg"
+}
+###################################Check Permission sqream:sqream on Cluster ###################################################################
+permission_sqream () {
+logit "Started permission_sqream"
+permission=$(stat -c  %G:%U $cluster)
+if [[ $permission == sqream:sqream ]]; then
+  echo "Cluster Permission is OK"
+  logit "Success: permission_sqream > Cluster Permission is OK"
+  else
+          echo "Please fix Cluster permission to sqream:sqream"
+          logit "Error: Please fix Cluster permission to sqream:sqream"
+fi
+logit "Success: permission_sqream"
+}
+############################# MIG Setup ############################################################################
+sqream_mig_setup(){
+logit "Started: sqream_mig_setup"
+clear
+echo "##########################################################"
+echo "Welcome to SQreamDB with MIG Installation support"
+echo "##########################################################"
+echo "##########################################################"
+echo "Please choose MIG PROFILE ID and MIG INSTANCES PER GPU"
+echo "##########################################################"
+sleep 3
+sudo nvidia-smi mig -lgip
+echo "Please enter MIG PROFILE ID:"
+read mipid
+echo "##########################################################"
+echo "Please enter MIG INSTANCES PER GPU:"
+read mipg
+echo "##########################################################"
+cat > /usr/local/sbin/sqream-mig-setup.sh << 'EOM'
+#!/bin/bash
+# sqream-mig-setup.sh
+#
+# Recreate MIG layout on all GPUs and regenerate /etc/sqream/sqreamN-service.conf
+# so that each SQream instance is bound to exactly one MIG slice with the correct
+# NUMA node, taken directly from `nvidia-smi topo -m`.
+
+set -euo pipefail
+
+CONF_DIR="/etc/sqream"
+#MIG_PROFILE_ID=15          # MIG 1g.20gb profile ID on A100 80GB (1g.20gb)
+MIG_PROFILE_ID=mig_pr_id         # MIG 1g.20gb profile ID on A100 80GB (1g.20gb)
+MIG_INSTANCES_PER_GPU=mig_in_per_gpu    # Number of MIG instances per GPU
+
+log()  { echo "[sqream-mig-setup] $*" >&2; }
+fail() { log "ERROR: $*"; exit 1; }
+
+# ---------- Helper: get NUMA node for a GPU index via topo ----------
+get_numa_node_for_gpu() {
+    local gpu_index="$1"
+    local numa
+
+    # Use the same logic you tested by hand, but filter to the specific GPU index
+    numa="$(nvidia-smi topo -m 2>/dev/null | awk -v idx="$gpu_index" '
+        NR > 1 && $1 ~ /^GPU[0-9]+$/ {
+            g = $1
+            sub("GPU", "", g)
+            if (g == idx) {
+                print $(NF-1)
+                exit
+            }
+        }')"
+
+    if [[ "$numa" =~ ^[0-9]+$ ]]; then
+        log "INFO: topo reports GPU ${gpu_index} NUMA node ${numa}"
+        echo "$numa"
+        return 0
+    fi
+
+    log "WARN: could not get NUMA node from topo for GPU ${gpu_index}, defaulting to 0 (got: '${numa}')"
+    echo "0"
+    return 0
+}
+
+# ---------- Helper: write one sqreamN-service.conf ----------
+write_sqream_conf() {
+    local conf_file="$1"      # /etc/sqream/sqreamN-service.conf
+    local mig_uuid="$2"
+    local numa_node="$3"
+
+    # Load existing values if present
+    local SERVICE_NAME RUN_USER DIR BINDIR LOGFILE
+    SERVICE_NAME=""
+    RUN_USER=""
+    DIR=""
+    BINDIR=""
+    LOGFILE=""
+
+    if [[ -f "$conf_file" ]]; then
+        # shellcheck source=/dev/null
+        source "$conf_file" || true
+    fi
+
+    # Derive SERVICE_NAME from filename if missing
+    if [[ -z "${SERVICE_NAME:-}" ]]; then
+        SERVICE_NAME="$(basename "$conf_file" | sed 's/-service\.conf$//')"
+    fi
+
+    # Sensible defaults if missing
+    RUN_USER="${RUN_USER:-sqream}"
+    DIR="${DIR:-/usr/local/sqream}"
+    BINDIR="${BINDIR:-/usr/local/sqream/bin/}"
+    LOGFILE="${LOGFILE:-/var/log/sqream/${SERVICE_NAME}.log}"
+
+    cat > "$conf_file" <<EOF
+SERVICE_NAME=${SERVICE_NAME}
+RUN_USER=${RUN_USER}
+DIR=${DIR}
+BINDIR=${BINDIR}
+LOGFILE=${LOGFILE}
+
+CUDA_VISIBLE_DEVICES=${mig_uuid}
+NUMA_NODE=${numa_node}
+EOF
+
+    log "Updated ${conf_file}: CUDA_VISIBLE_DEVICES=${mig_uuid}, NUMA_NODE=${numa_node}"
+}
+
+# ---------- 1. Discover GPUs ----------
+if ! command -v nvidia-smi >/dev/null 2>&1; then
+    fail "nvidia-smi not found in PATH"
+fi
+
+mapfile -t GPU_INDICES < <(nvidia-smi --query-gpu=index --format=csv,noheader 2>/dev/null)
+
+if [[ "${#GPU_INDICES[@]}" -eq 0 ]]; then
+    fail "No GPUs detected by nvidia-smi"
+fi
+
+log "Found GPUs: ${GPU_INDICES[*]}"
+
+# ---------- 2. Ensure MIG mode is enabled on all GPUs ----------
+for gpu in "${GPU_INDICES[@]}"; do
+    local_mode="$(nvidia-smi --query-gpu=mig.mode.current --format=csv,noheader -i "$gpu" 2>/dev/null | head -n1 || true)"
+
+    if [[ -z "$local_mode" ]]; then
+        log "WARN: Could not read mig.mode.current for GPU $gpu; assuming MIG mode is enabled because nvidia-smi shows MIG M. Enabled."
+        continue
+    fi
+
+    if [[ "$local_mode" != "Enabled" ]]; then
+        fail "GPU $gpu MIG mode is not Enabled (current: $local_mode). Enable once with 'nvidia-smi -i $gpu -mig 1' and reboot."
+    fi
+done
+
+# ---------- 3. Recreate MIG layout on all GPUs ----------
+for gpu in "${GPU_INDICES[@]}"; do
+    log "Cleaning existing MIG instances on GPU $gpu"
+    nvidia-smi mig -dci -i "$gpu" || true
+    nvidia-smi mig -dgi -i "$gpu" || true
+
+    # Build e.g. "15,15,15,15" list for -cgi
+    profile_list=""
+    for ((i=0; i< MIG_INSTANCES_PER_GPU; i++)); do
+        if [[ -z "$profile_list" ]]; then
+            profile_list="${MIG_PROFILE_ID}"
+        else
+            profile_list="${profile_list},${MIG_PROFILE_ID}"
+        fi
+    done
+
+    log "Creating ${MIG_INSTANCES_PER_GPU}x MIG profile ID ${MIG_PROFILE_ID} on GPU $gpu"
+    nvidia-smi mig -cgi "$profile_list" -C -i "$gpu"
+done
+
+# ---------- 4. Collect MIG UUIDs in (GPU, MIG) order ----------
+log "Collecting MIG UUIDs from nvidia-smi -L"
+
+# MIG_ENTRIES: each line is "<gpu_index> <MIG-UUID>"
+mapfile -t MIG_ENTRIES < <(
+    nvidia-smi -L | awk '
+        /^GPU [0-9]+:/ {
+            # Line looks like: "GPU 0: NVIDIA A100 ..."
+            # $1 = "GPU", $2 = "0:"
+            idx = $2
+            sub(":", "", idx)
+            gpu_index = idx
+        }
+        /^[[:space:]]+MIG/ {
+            # Indented MIG line, e.g.:
+            #   MIG 1g.20gb     Device  0: (UUID: MIG-xxxx)
+            if (match($0, /(MIG-[^ )]+)/, m)) {
+                print gpu_index, m[1]
+            }
+        }
+    '
+)
+
+if [[ "${#MIG_ENTRIES[@]}" -eq 0 ]]; then
+    fail "No MIG devices found after reconfiguration"
+fi
+
+log "Found MIG devices:"
+for line in "${MIG_ENTRIES[@]}"; do
+    log "  $line"
+done
+
+# ---------- 5. Build GPU→NUMA map using get_numa_node_for_gpu ----------
+declare -A GPU_NUMA
+for gpu in "${GPU_INDICES[@]}"; do
+    numa_node="$(get_numa_node_for_gpu "$gpu")"
+    GPU_NUMA["$gpu"]="$numa_node"
+done
+
+# Log the map
+for gpu in "${!GPU_NUMA[@]}"; do
+    log "GPU ${gpu} → NUMA node ${GPU_NUMA[$gpu]} (from topo)"
+done
+
+# ---------- 6. Get list of sqreamN-service.conf files ----------
+mapfile -t SQREAM_CONF_FILES < <(ls "${CONF_DIR}"/sqream*-service.conf 2>/dev/null | sort -V || true)
+
+if [[ "${#SQREAM_CONF_FILES[@]}" -eq 0 ]]; then
+    fail "No ${CONF_DIR}/sqream*-service.conf files found"
+fi
+
+TOTAL_MIG="${#MIG_ENTRIES[@]}"
+TOTAL_SERVICES="${#SQREAM_CONF_FILES[@]}"
+
+log "Total MIG devices: ${TOTAL_MIG}"
+log "Total SQream service configs: ${TOTAL_SERVICES}"
+
+if (( TOTAL_MIG < TOTAL_SERVICES )); then
+    fail "Not enough MIG devices (${TOTAL_MIG}) for ${TOTAL_SERVICES} service configs"
+fi
+
+# ---------- 7. Assign MIGs to service configs ----------
+log "Assigning MIG devices to SQream service configs"
+
+for ((i=0; i< TOTAL_SERVICES; i++)); do
+    conf_file="${SQREAM_CONF_FILES[$i]}"
+    entry="${MIG_ENTRIES[$i]}"
+
+    gpu_index="$(awk '{print $1}' <<< "$entry")"
+    mig_uuid="$(awk '{print $2}' <<< "$entry")"
+    numa_node="${GPU_NUMA[$gpu_index]:-0}"
+
+    write_sqream_conf "$conf_file" "$mig_uuid" "$numa_node"
+done
+
+log "MIG + SQream configuration completed successfully."
+EOM
+sudo sed -i "s/^MIG_PROFILE_ID=.*/MIG_PROFILE_ID=$mipid/" /usr/local/sbin/sqream-mig-setup.sh
+sudo sed -i "s/^MIG_INSTANCES_PER_GPU=.*/MIG_INSTANCES_PER_GPU=$mipg/" /usr/local/sbin/sqream-mig-setup.sh
+sudo chmod +x /usr/local/sbin/sqream-mig-setup.sh
+logit "Success: sqream_mig_setup"
+}
+##################### MIG Service #################################################################################
+mig_service(){
+logit "Started: mig_service"
+cat > /etc/systemd/system/sqream-mig-setup.service << 'EOM'
+[Unit]
+Description=Configure MIG layout and SQream service configs
+After=local-fs.target sysinit.target
+Before=monit.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/sbin/sqream-mig-setup.sh
+
+[Install]
+WantedBy=multi-user.target
+EOM
+sudo systemctl daemon-reload
+sudo systemctl enable sqream-mig-setup.service
+#sudo systemctl start sqream-mig-setup.service &> /dev/null
+logit "Success: mig_service"
 }
 ################################ re_meta_copy_files ############################################################################################
 re_meta_copy_files() {
@@ -267,7 +948,7 @@ RAM_GB=$(expr $RAM_MB / 1024)
 global_limitQueryMemoryGB=$((RAM_GB * 90 / 100 ))
 number_of_workers=$(ls -dq /etc/sqream/*sqream*-service.conf | wc -l)
 limitQueryMemoryGB=$((global_limitQueryMemoryGB / number_of_workers))
-spoolMemoryGB=$(($limitQueryMemoryGB - 50 ))
+spoolMemoryGB=$(($limitQueryMemoryGB - 10 ))
 cudaMemQuota=$(cat /etc/sqream/sqream${i}_config.json | grep cudaMemQuota)
 for i in $(seq 1 ${number_of_workers}); do
 config_file="/etc/sqream/sqream${i}_config.json"
@@ -291,7 +972,8 @@ fi
 global_limitQueryMemoryGB=$((RAM_GB * 90 / 100 ))
 number_of_workers=$(ls -dq /etc/sqream/*sqream*-service.conf | wc -l)
 limitQueryMemoryGB=$((global_limitQueryMemoryGB / number_of_workers))
-spoolMemoryGB=$(($limitQueryMemoryGB - 50 ))
+#spoolMemoryGB=$(($limitQueryMemoryGB * 80 / 100 ))
+spoolMemoryGB=$(($limitQueryMemoryGB - 10 ))
 cudaMemQuota=$(cat /etc/sqream/sqream${i}_config.json | grep cudaMemQuota)
 for i in $(seq 1 ${number_of_workers}); do
 config_file="/etc/sqream/sqream${i}_config.json"
@@ -325,7 +1007,7 @@ fi
 global_limitQueryMemoryGB=$((RAM_GB * 95 / 100 ))
 number_of_workers=$(ls -dq /etc/sqream/*sqream*-service.conf | wc -l)
 limitQueryMemoryGB=$((global_limitQueryMemoryGB / number_of_workers))
-spoolMemoryGB=$(($limitQueryMemoryGB - 50 ))
+spoolMemoryGB=$(($limitQueryMemoryGB - 10 ))
 cudaMemQuota=$(cat /etc/sqream/sqream${i}_config.json | grep cudaMemQuota)
 for i in $(seq 1 ${number_of_workers}); do
 config_file="/etc/sqream/sqream${i}_config.json"
@@ -1268,7 +1950,8 @@ RAM_GB=$(expr $RAM_MB / 1024)
 global_limitQueryMemoryGB=$((RAM_GB * 90 / 100 ))
 number_of_workers=$(ls -dq /etc/sqream/*sqream*-service.conf | wc -l)
 limitQueryMemoryGB=$((global_limitQueryMemoryGB / number_of_workers))
-spoolMemoryGB=$(($limitQueryMemoryGB - 50 ))
+#spoolMemoryGB=$(($limitQueryMemoryGB * 80 / 100 ))
+spoolMemoryGB=$(($limitQueryMemoryGB - 10 ))
 cudaMemQuota=$(cat /etc/sqream/sqream${i}_config.json | grep cudaMemQuota)
 for i in $(seq 1 ${number_of_workers}); do
 config_file="/etc/sqream/sqream${i}_config.json"
@@ -1292,7 +1975,8 @@ fi
 global_limitQueryMemoryGB=$((RAM_GB * 90 / 100 ))
 number_of_workers=$(ls -dq /etc/sqream/*sqream*-service.conf | wc -l)
 limitQueryMemoryGB=$((global_limitQueryMemoryGB / number_of_workers))
-spoolMemoryGB=$(($limitQueryMemoryGB - 50 ))
+#spoolMemoryGB=$(($limitQueryMemoryGB * 80 / 100 ))
+spoolMemoryGB=$(($limitQueryMemoryGB - 10 ))
 cudaMemQuota=$(cat /etc/sqream/sqream${i}_config.json | grep cudaMemQuota)
 for i in $(seq 1 ${number_of_workers}); do
 config_file="/etc/sqream/sqream${i}_config.json"
@@ -1326,7 +2010,8 @@ fi
 global_limitQueryMemoryGB=$((RAM_GB * 95 / 100 ))
 number_of_workers=$(ls -dq /etc/sqream/*sqream*-service.conf | wc -l)
 limitQueryMemoryGB=$((global_limitQueryMemoryGB / number_of_workers))
-spoolMemoryGB=$(($limitQueryMemoryGB - 50 ))
+#spoolMemoryGB=$(($limitQueryMemoryGB * 80 / 100 ))
+spoolMemoryGB=$(($limitQueryMemoryGB - 10 ))
 cudaMemQuota=$(cat /etc/sqream/sqream${i}_config.json | grep cudaMemQuota)
 for i in $(seq 1 ${number_of_workers}); do
 config_file="/etc/sqream/sqream${i}_config.json"
@@ -1723,9 +2408,9 @@ echo "$(hostname -i) $machineip " | sudo tee -a  /etc/hosts
         * )
 echo "Stay with Current IP address is $current_ip"
 logit "Success: Stay with Current IP address is $current_ip"
+echo "$(hostname -i) $current_ip " | sudo tee -a  /etc/hosts
 echo "##########################################################################################################################################"
 machineip=$current_ip
-echo "$(hostname -i) $current_ip " | sudo tee -a  /etc/hosts
 ;;
 esac
 echo "##########################################################################################################################################"
@@ -2161,7 +2846,7 @@ RAM_GB=$(expr $RAM_MB / 1024)
 global_limitQueryMemoryGB=$((RAM_GB * 90 / 100 ))
 number_of_workers=$(ls -dq /etc/sqream/*sqream*-service.conf | wc -l)
 limitQueryMemoryGB=$((global_limitQueryMemoryGB / number_of_workers))
-spoolMemoryGB=$(($limitQueryMemoryGB - 50 ))
+spoolMemoryGB=$(($limitQueryMemoryGB - 10 ))
 cudaMemQuota=$(cat /etc/sqream/sqream${i}_config.json | grep cudaMemQuota)
 for i in $(seq 1 ${number_of_workers}); do
 config_file="/etc/sqream/sqream${i}_config.json"
@@ -2185,7 +2870,8 @@ fi
 global_limitQueryMemoryGB=$((RAM_GB * 90 / 100 ))
 number_of_workers=$(ls -dq /etc/sqream/*sqream*-service.conf | wc -l)
 limitQueryMemoryGB=$((global_limitQueryMemoryGB / number_of_workers))
-spoolMemoryGB=$(($limitQueryMemoryGB - 50 ))
+#spoolMemoryGB=$(($limitQueryMemoryGB * 80 / 100 ))
+spoolMemoryGB=$(($limitQueryMemoryGB - 10 ))
 cudaMemQuota=$(cat /etc/sqream/sqream${i}_config.json | grep cudaMemQuota)
 for i in $(seq 1 ${number_of_workers}); do
 config_file="/etc/sqream/sqream${i}_config.json"
@@ -2218,7 +2904,7 @@ fi
 global_limitQueryMemoryGB=$((RAM_GB * 95 / 100 ))
 number_of_workers=$(ls -dq /etc/sqream/*sqream*-service.conf | wc -l)
 limitQueryMemoryGB=$((global_limitQueryMemoryGB / number_of_workers))
-spoolMemoryGB=$(($limitQueryMemoryGB - 50 ))
+spoolMemoryGB=$(($limitQueryMemoryGB - 10 ))
 cudaMemQuota=$(cat /etc/sqream/sqream${i}_config.json | grep cudaMemQuota)
 for i in $(seq 1 ${number_of_workers}); do
 config_file="/etc/sqream/sqream${i}_config.json"
@@ -2349,6 +3035,37 @@ echo "
 ##################################################################################################"
 logit "Success: Done installing SQreamDB"
 }
+#################################### END MIG ##################################################################################################
+end_mig() {
+logit "Started: : end_mig"
+echo "#######################################################################################################"
+echo "                               SQream MIG Installation Complete"
+echo "#######################################################################################################"
+echo '
+  _____  _____          _____ _      _ _    _ __  __
+ / ____|/ ____|   /\   |_   _| |    (_) |  | |  \/  |
+| (___ | |       /  \    | | | |     _| |  | | \  / |
+ \___ \| |      / /\ \   | | | |    | | |  | | |\/| |
+ ____) | |____ / ____ \ _| |_| |____| | |__| | |  | |
+|_____/ \_____/_/    \_\_____|______|_|\____/|_|  |_|'
+}
+########################################### Check Log File #####################################################################################
+check_logfile () {
+if [ -f $LOG_FILE ];then
+sudo rm -f $LOG_FILE
+
+fi
+logit "Succes: : end_mig"
+}
+############################################ Log File ######################################################################################
+LOG_FILE="/tmp/sqream-MIGinstallV1.log"
+logit() 
+{
+    echo "[`date`] - ${*}" >> ${LOG_FILE}    
+}
+
+
+
 ############################################################### END With Monit #########################################################################################
 end_monit () {
 whiptail --msgbox "+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
@@ -2805,7 +3522,6 @@ logit "Started generate_config_files_monit"
     gpu_id=$1
     worker_count=$2
     i=0    
-    
         sport=5099
         port=4999
         while [ $i -lt $worker_count ]; do
@@ -2842,9 +3558,8 @@ logit "Started generate_config_files_monit"
         logit "Success: generate_config_files_monit" 
         install_legacy
         install_metadata
-        sudo monit reload > /dev/null 
         sudo systemctl enable monit > /dev/null 2&>1
-        sudo monit stop all > /dev/null 2&>1
+        sudo monit reload > /dev/null 
         #################################################################################################    
         
 }
@@ -2853,7 +3568,7 @@ generate_config_files_pcs() {
 logit "Started generate_config_files_pcs"
     gpu_id=$1
     worker_count=$2
-    i=0    
+    i=0  
     
         sport=5099
         port=4999
@@ -3701,6 +4416,7 @@ MD_SERVER_ADDR=$MD_HOST
 EOF
 ;;
 esac
+
 sudo systemctl daemon-reload
 echo '
 check process cbo-backend with pidfile /var/run/cbo-backend.pid
@@ -3726,7 +4442,7 @@ echo "##########################################################################
 echo '
 to check CBO services:
 sudo monit start all
-sudo monit status'
+sudo monit status all'
 echo "###################################################################################################"
 }
 #################################################################################################################################
@@ -3765,6 +4481,9 @@ help ()
   echo "-cbo,                   Install SQreamDB CBO project"
   echo "                        example: sudo ./sqream-install-v1.sh -cbo "
   echo "---------------------------------------------------------------------------------------------------"
+  echo "-mig,                   Install SQreamDB with MIG support"
+  echo "                        example: sudo ./sqream-install-v1.sh -mig "
+  echo "---------------------------------------------------------------------------------------------------"  
   echo "-E,                     Expert Reconfiguration for SQreamDB on monit"
   echo "                        example: sudo ./sqream-install-v1.sh -E "
   echo "---------------------------------------------------------------------------------------------------"
@@ -4096,12 +4815,40 @@ shift;
  sudo rm -rf sqream-temp
  summary
  shift;
-  ;;   
+  ;; 
 -cbo|--cbo_install)
   shift;
   cbo_installer
   shift;
   ;; 
+-mig|--sqreamdb_with_mig_support)
+  shift;
+  run_with_sudo
+  sqream_mig_setup
+  mig_service
+  check_logfile
+  check_for_sqream_user
+  TARFILE=$1 
+  check_tar_file 
+  check_permissions_and_folders
+  verify_and_extract_mig
+  move_package
+  make_symlink
+  mkdir sqream-temp 
+  cd sqream-temp
+  install_metadata_service
+  install_metadata_config_json
+  advance_configuration_mig
+  cd ..
+  sudo rm -rf sqream-temp
+  sudo systemctl start sqream-mig-setup.service
+  sudo systemctl enable monit
+  sudo systemctl start monit 
+  sudo monit reload &> /dev/null
+  end_mig
+  shift;
+  ;;  
+  
   *)
   echo "unrecognised option: $1"
   help
@@ -4110,7 +4857,3 @@ esac
 done
 }
 ######################### END of Script ############################################################################################################################################
-
-
-
-
