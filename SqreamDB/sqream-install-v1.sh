@@ -247,7 +247,7 @@ logit "Started: formula_advance_mig"
 num_gpus=$(nvidia-smi --query-gpu=name --format=csv,noheader | wc -l)
 echo "#######################################################################################################"
 echo "Number of GPUs: $num_gpus"
-migs=$(nvidia-smi mig -lgipp | wc -l)
+migs=$(nvidia-smi -L | grep MIG | wc -l)
 
 echo "#######################################################################################################"
 echo "Total Number of SQream Workers : $migs"
@@ -264,7 +264,7 @@ logit "Started: formula_advance_monit_mig"
 num_gpus=$(nvidia-smi --query-gpu=name --format=csv,noheader | wc -l)
 echo "#######################################################################################################"
 echo "Number of GPUs: $num_gpus"
-migs=$(nvidia-smi mig -lgipp | wc -l)
+migs=$(nvidia-smi -L | grep MIG | wc -l)
 echo "#######################################################################################################"
 echo "Total Number of SQream Workers : $migs"
 worker_count_gpu=$migs
