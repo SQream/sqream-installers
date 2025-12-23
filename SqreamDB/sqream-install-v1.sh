@@ -4824,12 +4824,12 @@ shift;
 -mig|--sqreamdb_with_mig_support)
   shift;
   run_with_sudo
+  TARFILE=$1 
+  check_tar_file
   sqream_mig_setup
   mig_service
   check_logfile
-  check_for_sqream_user
-  TARFILE=$1 
-  check_tar_file 
+  check_for_sqream_user   
   check_permissions_and_folders
   verify_and_extract_mig
   move_package
