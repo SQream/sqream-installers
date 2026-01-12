@@ -438,6 +438,8 @@ fi
 if ! [ -x "$(command -v python3)" ]; then
 echo -e "${yellow}+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++${reset}" 
 echo -e "${red}Python3 Not Installed${reset}" 
+logit "Error: Python3 Not Installed"
+logit "##################################################################"
 echo -e "${yellow}+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++${reset}" 
 fi
 echo -e "${green}+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++${reset}"
@@ -446,37 +448,49 @@ echo -e "${green}+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 VERSION=$(su - sqream -c "python3 --version")
 if [ "$VERSION" = "Python 3.11.7" ]; then
 echo "##################################################################"
-echo "            Python3 Current Version is 3.11.7                     "
-echo "########            No need to install        ####################"
+echo -e "${green}  Python3 Current Version is 3.11.7${reset}"
+echo -e "${green}######## No need to install  ##########################${reset}"
+logit "Success: Python3 Current Version is 3.11.7"
+logit "##################################################################"
 echo "##################################################################"    
 else
 echo "##################################################################"
 echo -e "${red}########### Python current version is $VERSION"
 echo -e "${green}########    please install python 3.11.7    ${reset}"
+logit "Error: Python current version is $VERSION"
+logit "Error: please install python 3.11.7"
+logit "##################################################################"
 echo "##################################################################"
 fi
-################################ Node JS  ##############################################################################
+################################ Node JS  #################################################################################
 if ! [ -z $(command -pVv node) ] >>/dev/null ;then
 echo -e "${yellow}+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++${reset}"  
 echo -e "${green}                  Current NodeJS Version${reset}" 
+logit "Success: NodeJS exist"
+logit "##################################################################"
 echo -e "${yellow}+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++${reset}" 
 echo -e "${yellow}+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++${reset}" 
 echo -e "                   ${green}SQream recommended NodeJS 16.X or 18.X${reset}                      " 
 echo -e "${yellow}+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++${reset}" 
 else
 echo -e "${yellow}+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++${reset}" 
-echo -e "${red}NodeJS not installd - Please install NodeJS Ver 16.X or 18.X{reset}" 
+echo -e "${red}NodeJS not installd - Please install NodeJS Ver 16.X or 18.X${reset}" 
 echo -e "${green}NodeJS required only if this host running SQream Studio${reset}"
+logit "Error: NodeJS not installd"
+logit "##################################################################"
 echo -e "${yellow}+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++${reset}" 
 fi
 if ! [ -x "$(command -v pm2)" ]; then
 echo -e "${yellow}+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++${reset}" 
 echo -e "${red}PM2 Not Found${reset}" 
 echo -e "${green}SQream requires PM2 only if this host running SQream Studio${reset}" 
+logit "Error: PM2 Not Found"
+logit "##################################################################"
 echo -e "${yellow}+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++${reset}"
 else
 echo -e "${green}+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++${reset}"
 echo "PM2 is Installed" 
+logit "Success: PM2 is Installed"
 echo -e "${green}+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++${reset}" 
 fi
 ######################################## Security limits ###############################################################
