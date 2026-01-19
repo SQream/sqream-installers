@@ -5,6 +5,57 @@ logit()
 {
     echo "[`date`] - ${*}" >> ${LOG_FILE}    
 }
+########################## TOTAL RAM ##########################################################################################################
+total_ram(){
+# Get total RAM in GB (rounded down)
+TOTAL_RAM_GB=$(awk '/MemTotal/ { printf "%d\n", $2 / 1024 / 1024 }' /proc/meminfo)
+AVAILABLE_RAM_GB=0
+if (( TOTAL_RAM_GB < 32 )); then
+    AVAILABLE_RAM_GB=8
+elif (( TOTAL_RAM_GB < 64 )); then
+    AVAILABLE_RAM_GB=16
+elif (( TOTAL_RAM_GB <= 128 )); then
+    AVAILABLE_RAM_GB=32
+elif (( TOTAL_RAM_GB < 256 )); then
+    AVAILABLE_RAM_GB=32
+elif (( TOTAL_RAM_GB <= 512 )); then
+    AVAILABLE_RAM_GB=64
+elif (( TOTAL_RAM_GB < 1024 )); then
+    AVAILABLE_RAM_GB=64
+else
+    AVAILABLE_RAM_GB=128
+fi
+AVAILABLE_RAM_GB=$(( TOTAL_RAM_GB -  AVAILABLE_RAM_GB ))
+}
+
+########################## TOTAL RAM with METADATA #############################################################################
+total_ram_meta(){
+# Get total RAM in GB (rounded down)
+TOTAL_RAM_GB=$(awk '/MemTotal/ { printf "%d\n", $2 / 1024 / 1024 }' /proc/meminfo)
+if (( TOTAL_RAM_GB < 512 )); then
+TOTAL_RAM_GB=$(awk '/MemTotal/ { printf "%d\n", $2 / 1024 / 1024 }' /proc/meminfo)
+else
+TOTAL_RAM_GB=$(awk '/MemTotal/ { printf "%d\n", ($2 / 1024 / 1024) - 50 }' /proc/meminfo)
+fi
+AVAILABLE_RAM_GB=0
+if (( TOTAL_RAM_GB < 32 )); then
+    AVAILABLE_RAM_GB=8
+elif (( TOTAL_RAM_GB < 64 )); then
+    AVAILABLE_RAM_GB=16
+elif (( TOTAL_RAM_GB <= 128 )); then
+    AVAILABLE_RAM_GB=32
+elif (( TOTAL_RAM_GB < 256 )); then
+    AVAILABLE_RAM_GB=32
+elif (( TOTAL_RAM_GB <= 512 )); then
+    AVAILABLE_RAM_GB=64
+elif (( TOTAL_RAM_GB < 1024 )); then
+    AVAILABLE_RAM_GB=64
+else
+    AVAILABLE_RAM_GB=128
+fi
+AVAILABLE_RAM_GB=$(( TOTAL_RAM_GB -  AVAILABLE_RAM_GB ))
+}
+
 ############################################ etc backup #########################################################################################
 etc_backup () {
 logit "Started etc_backup"
@@ -247,7 +298,7 @@ logit "Started: formula_advance_mig"
 num_gpus=$(nvidia-smi --query-gpu=name --format=csv,noheader | wc -l)
 echo "#######################################################################################################"
 echo "Number of GPUs: $num_gpus"
-migs=$(nvidia-smi -L | grep MIG | wc -l)
+migs=$(nvidia-smi -L |grep MIG |wc -l)
 
 echo "#######################################################################################################"
 echo "Total Number of SQream Workers : $migs"
@@ -264,7 +315,7 @@ logit "Started: formula_advance_monit_mig"
 num_gpus=$(nvidia-smi --query-gpu=name --format=csv,noheader | wc -l)
 echo "#######################################################################################################"
 echo "Number of GPUs: $num_gpus"
-migs=$(nvidia-smi -L | grep MIG | wc -l)
+migs=$(nvidia-smi -L |grep MIG |wc -l)
 echo "#######################################################################################################"
 echo "Total Number of SQream Workers : $migs"
 worker_count_gpu=$migs
@@ -319,18 +370,29 @@ fi
 default_limitQuery_mig () {
 logit "Started:  default_limitQuery_mig"
 copy_files
-RAM_KB=$(grep MemTotal /proc/meminfo | awk '{print $2}')
-RAM_MB=$(expr $RAM_KB / 1024)
-GRAM_GB=$(expr $RAM_MB / 1024)
-if [ $GRAM_GB -ge 512 ] ;then
-RAM_GB=$(expr $GRAM_GB - 50)
-else
-RAM_GB=$(expr $RAM_MB / 1024)
-fi
-global_limitQueryMemoryGB=$((RAM_GB * 90 / 100 ))
+total_ram_meta
 number_of_workers=$(ls -dq /etc/sqream/*sqream*-service.conf | wc -l)
-limitQueryMemoryGB=$((global_limitQueryMemoryGB / number_of_workers))
-spoolMemoryGB=$(($limitQueryMemoryGB - 10 ))
+limitQueryMemoryGB=$((AVAILABLE_RAM_GB / number_of_workers))
+if  [ $limitQueryMemoryGB -ge 128 ] ; then
+echo "####################################################"
+echo "limitQueryMemoryGB greater then 128GB"
+echo "Number of workers = $number_of_workers"
+echo "####################################################"
+spoolMemoryGB=$(($limitQueryMemoryGB - 50 ))
+echo "Limitquery = $limitQueryMemoryGB"
+echo "####################################################"
+echo "SpoolMemorey = $spoolMemoryGB"
+else
+spoolMemoryGB=$(($limitQueryMemoryGB * 50 /100 ))
+echo "####################################################"
+echo "limitQueryMemoryGB lower then 128GB" 
+echo "Number of workers = $number_of_workers"
+echo "####################################################"
+echo "Limitquery = $limitQueryMemoryGB"
+echo "####################################################"
+echo "SpoolMemorey = $spoolMemoryGB"
+echo "####################################################"
+fi
 cudaMemQuota=$(cat /etc/sqream/sqream${i}_config.json | grep cudaMemQuota)
 for i in $(seq 1 ${number_of_workers}); do
 config_file="/etc/sqream/sqream${i}_config.json"
@@ -341,25 +403,37 @@ install_legacy_mig
 }
 ########################## limitQuery no meta ###############################################################################################
 limitQuery_no_meta_mig () {
+logit "Started:  limitQuery_no_meta_mig"
 copy_files
-RAM_KB=$(grep MemTotal /proc/meminfo | awk '{print $2}')
-RAM_MB=$(expr $RAM_KB / 1024)
-GRAM_GB=$(expr $RAM_MB / 1024)
-if [ $GRAM_GB -ge 512 ] ;then
-RAM_GB=$(expr $GRAM_GB - 50)
-else
-RAM_GB=$(expr $RAM_MB / 1024)
-fi
-global_limitQueryMemoryGB=$((RAM_GB * 95 / 100 ))
+total_ram
 number_of_workers=$(ls -dq /etc/sqream/*sqream*-service.conf | wc -l)
-limitQueryMemoryGB=$((global_limitQueryMemoryGB / number_of_workers))
-spoolMemoryGB=$(($limitQueryMemoryGB - 10 ))
+limitQueryMemoryGB=$((AVAILABLE_RAM_GB / number_of_workers))
+if  [ $limitQueryMemoryGB -ge 128 ] ; then
+echo "####################################################"
+echo "limitQueryMemoryGB greater then 128GB"
+echo "Number of workers = $number_of_workers"
+echo "####################################################"
+spoolMemoryGB=$(($limitQueryMemoryGB - 50 ))
+echo "Limitquery = $limitQueryMemoryGB"
+echo "####################################################"
+echo "SpoolMemorey = $spoolMemoryGB"
+else
+spoolMemoryGB=$(($limitQueryMemoryGB * 50 /100 ))
+echo "####################################################"
+echo "limitQueryMemoryGB lower then 128GB" 
+echo "Number of workers = $number_of_workers"
+echo "####################################################"
+echo "Limitquery = $limitQueryMemoryGB"
+echo "####################################################"
+echo "SpoolMemorey = $spoolMemoryGB"
+echo "####################################################"
+fi
 cudaMemQuota=$(cat /etc/sqream/sqream${i}_config.json | grep cudaMemQuota)
 for i in $(seq 1 ${number_of_workers}); do
 config_file="/etc/sqream/sqream${i}_config.json"
 sed -i "s/\"limitQueryMemoryGB\": limitQueryMemoryGB,/\"limitQueryMemoryGB\": $limitQueryMemoryGB,/" "$config_file"       
 done
-logit "Success:  default_limitQuery"        
+logit "Success:  limitQuery_no_meta_mig"        
 install_legacy_mig
 } 
 ################################ Function to Create SQream Legacy Conf File #####################################################################
@@ -961,19 +1035,29 @@ install_legacy_aws
 ################################ default_limitQuery ###########################################################################################
 default_limitQuery_aws () {
 logit "Started:  default_limitQuery_aws"
-RAM_KB=$(grep MemTotal /proc/meminfo | awk '{print $2}')
-RAM_MB=$(expr $RAM_KB / 1024)
-GRAM_GB=$(expr $RAM_MB / 1024)
-if [ $GRAM_GB -ge 512 ] ;then
-RAM_GB=$(expr $GRAM_GB - 50)
-else
-RAM_GB=$(expr $RAM_MB / 1024)
-fi
-global_limitQueryMemoryGB=$((RAM_GB * 90 / 100 ))
+total_ram_meta
 number_of_workers=$(ls -dq /etc/sqream/*sqream*-service.conf | wc -l)
-limitQueryMemoryGB=$((global_limitQueryMemoryGB / number_of_workers))
-#spoolMemoryGB=$(($limitQueryMemoryGB * 80 / 100 ))
-spoolMemoryGB=$(($limitQueryMemoryGB - 10 ))
+limitQueryMemoryGB=$((AVAILABLE_RAM_GB / number_of_workers))
+if  [ $limitQueryMemoryGB -ge 128 ] ; then
+echo "####################################################"
+echo "limitQueryMemoryGB greater then 128GB"
+echo "Number of workers = $number_of_workers"
+echo "####################################################"
+spoolMemoryGB=$(($limitQueryMemoryGB - 50 ))
+echo "Limitquery = $limitQueryMemoryGB"
+echo "####################################################"
+echo "SpoolMemorey = $spoolMemoryGB"
+else
+spoolMemoryGB=$(($limitQueryMemoryGB * 50 /100 ))
+echo "####################################################"
+echo "limitQueryMemoryGB lower then 128GB" 
+echo "Number of workers = $number_of_workers"
+echo "####################################################"
+echo "Limitquery = $limitQueryMemoryGB"
+echo "####################################################"
+echo "SpoolMemorey = $spoolMemoryGB"
+echo "####################################################"
+fi
 cudaMemQuota=$(cat /etc/sqream/sqream${i}_config.json | grep cudaMemQuota)
 for i in $(seq 1 ${number_of_workers}); do
 config_file="/etc/sqream/sqream${i}_config.json"
@@ -995,25 +1079,36 @@ fi
 }
 ########################## limitQuery no meta ###############################################################################################
 limitQuery_no_meta_aws () {
-logit "Started:  default_limitQuery_aws"
-RAM_KB=$(grep MemTotal /proc/meminfo | awk '{print $2}')
-RAM_MB=$(expr $RAM_KB / 1024)
-GRAM_GB=$(expr $RAM_MB / 1024)
-if [ $GRAM_GB -ge 512 ] ;then
-RAM_GB=$(expr $GRAM_GB - 50)
-else
-RAM_GB=$(expr $RAM_MB / 1024)
-fi
-global_limitQueryMemoryGB=$((RAM_GB * 95 / 100 ))
+logit "Started:  limitQuery_no_meta_aws"
+total_ram
 number_of_workers=$(ls -dq /etc/sqream/*sqream*-service.conf | wc -l)
-limitQueryMemoryGB=$((global_limitQueryMemoryGB / number_of_workers))
-spoolMemoryGB=$(($limitQueryMemoryGB - 10 ))
+limitQueryMemoryGB=$((AVAILABLE_RAM_GB / number_of_workers))
+if  [ $limitQueryMemoryGB -ge 128 ] ; then
+echo "####################################################"
+echo "limitQueryMemoryGB greater then 128GB"
+echo "Number of workers = $number_of_workers"
+echo "####################################################"
+spoolMemoryGB=$(($limitQueryMemoryGB - 50 ))
+echo "Limitquery = $limitQueryMemoryGB"
+echo "####################################################"
+echo "SpoolMemorey = $spoolMemoryGB"
+else
+spoolMemoryGB=$(($limitQueryMemoryGB * 50 /100 ))
+echo "####################################################"
+echo "limitQueryMemoryGB lower then 128GB" 
+echo "Number of workers = $number_of_workers"
+echo "####################################################"
+echo "Limitquery = $limitQueryMemoryGB"
+echo "####################################################"
+echo "SpoolMemorey = $spoolMemoryGB"
+echo "####################################################"
+fi
 cudaMemQuota=$(cat /etc/sqream/sqream${i}_config.json | grep cudaMemQuota)
 for i in $(seq 1 ${number_of_workers}); do
 config_file="/etc/sqream/sqream${i}_config.json"
 sed -i "s/\"limitQueryMemoryGB\": limitQueryMemoryGB,/\"limitQueryMemoryGB\": $limitQueryMemoryGB,/" "$config_file"
 done
-logit "Success:  default_limitQuery_aws"
+logit "Success:  limitQuery_no_meta_aws"
 install_legacy_aws
 }
 #################################################################################################################################################
@@ -1944,14 +2039,29 @@ logit "Success create_config_template_file_oci"
 ################################ custom_limitQuery #############################################################################################
 custom_limitQuery_oci () {
 logit "Started custom_limitQuery_oci"
-RAM_KB=$(grep MemTotal /proc/meminfo | awk '{print $2}')
-RAM_MB=$(expr $RAM_KB / 1024)
-RAM_GB=$(expr $RAM_MB / 1024)
-global_limitQueryMemoryGB=$((RAM_GB * 90 / 100 ))
+total_ram
 number_of_workers=$(ls -dq /etc/sqream/*sqream*-service.conf | wc -l)
-limitQueryMemoryGB=$((global_limitQueryMemoryGB / number_of_workers))
-#spoolMemoryGB=$(($limitQueryMemoryGB * 80 / 100 ))
-spoolMemoryGB=$(($limitQueryMemoryGB - 10 ))
+limitQueryMemoryGB=$((AVAILABLE_RAM_GB / number_of_workers))
+if  [ $limitQueryMemoryGB -ge 128 ] ; then
+echo "####################################################"
+echo "limitQueryMemoryGB greater then 128GB"
+echo "Number of workers = $number_of_workers"
+echo "####################################################"
+spoolMemoryGB=$(($limitQueryMemoryGB - 50 ))
+echo "Limitquery = $limitQueryMemoryGB"
+echo "####################################################"
+echo "SpoolMemorey = $spoolMemoryGB"
+else
+spoolMemoryGB=$(($limitQueryMemoryGB * 50 /100 ))
+echo "####################################################"
+echo "limitQueryMemoryGB lower then 128GB" 
+echo "Number of workers = $number_of_workers"
+echo "####################################################"
+echo "Limitquery = $limitQueryMemoryGB"
+echo "####################################################"
+echo "SpoolMemorey = $spoolMemoryGB"
+echo "####################################################"
+fi
 cudaMemQuota=$(cat /etc/sqream/sqream${i}_config.json | grep cudaMemQuota)
 for i in $(seq 1 ${number_of_workers}); do
 config_file="/etc/sqream/sqream${i}_config.json"
@@ -1964,19 +2074,29 @@ install_legacy_oci
 ################################ default_limitQuery ###########################################################################################
 default_limitQuery_oci () {
 logit "Started:  default_limitQuery_oci"
-RAM_KB=$(grep MemTotal /proc/meminfo | awk '{print $2}')
-RAM_MB=$(expr $RAM_KB / 1024)
-GRAM_GB=$(expr $RAM_MB / 1024)
-if [ $GRAM_GB -ge 512 ] ;then
-RAM_GB=$(expr $GRAM_GB - 50)
-else
-RAM_GB=$(expr $RAM_MB / 1024)
-fi
-global_limitQueryMemoryGB=$((RAM_GB * 90 / 100 ))
+total_ram_meta
 number_of_workers=$(ls -dq /etc/sqream/*sqream*-service.conf | wc -l)
-limitQueryMemoryGB=$((global_limitQueryMemoryGB / number_of_workers))
-#spoolMemoryGB=$(($limitQueryMemoryGB * 80 / 100 ))
-spoolMemoryGB=$(($limitQueryMemoryGB - 10 ))
+limitQueryMemoryGB=$((AVAILABLE_RAM_GB / number_of_workers))
+if  [ $limitQueryMemoryGB -ge 128 ] ; then
+echo "####################################################"
+echo "limitQueryMemoryGB greater then 128GB"
+echo "Number of workers = $number_of_workers"
+echo "####################################################"
+spoolMemoryGB=$(($limitQueryMemoryGB - 50 ))
+echo "Limitquery = $limitQueryMemoryGB"
+echo "####################################################"
+echo "SpoolMemorey = $spoolMemoryGB"
+else
+spoolMemoryGB=$(($limitQueryMemoryGB * 50 /100 ))
+echo "####################################################"
+echo "limitQueryMemoryGB lower then 128GB" 
+echo "Number of workers = $number_of_workers"
+echo "####################################################"
+echo "Limitquery = $limitQueryMemoryGB"
+echo "####################################################"
+echo "SpoolMemorey = $spoolMemoryGB"
+echo "####################################################"
+fi
 cudaMemQuota=$(cat /etc/sqream/sqream${i}_config.json | grep cudaMemQuota)
 for i in $(seq 1 ${number_of_workers}); do
 config_file="/etc/sqream/sqream${i}_config.json"
@@ -1999,19 +2119,29 @@ fi
 ########################## limitQuery no meta ###############################################################################################
 limitQuery_no_meta_oci () {
 logit "Started:  default_limitQuery_oci"
-RAM_KB=$(grep MemTotal /proc/meminfo | awk '{print $2}')
-RAM_MB=$(expr $RAM_KB / 1024)
-GRAM_GB=$(expr $RAM_MB / 1024)
-if [ $GRAM_GB -ge 512 ] ;then
-RAM_GB=$(expr $GRAM_GB - 50)
-else
-RAM_GB=$(expr $RAM_MB / 1024)
-fi
-global_limitQueryMemoryGB=$((RAM_GB * 95 / 100 ))
+total_ram
 number_of_workers=$(ls -dq /etc/sqream/*sqream*-service.conf | wc -l)
-limitQueryMemoryGB=$((global_limitQueryMemoryGB / number_of_workers))
-#spoolMemoryGB=$(($limitQueryMemoryGB * 80 / 100 ))
-spoolMemoryGB=$(($limitQueryMemoryGB - 10 ))
+limitQueryMemoryGB=$((AVAILABLE_RAM_GB / number_of_workers))
+if  [ $limitQueryMemoryGB -ge 128 ] ; then
+echo "####################################################"
+echo "limitQueryMemoryGB greater then 128GB"
+echo "Number of workers = $number_of_workers"
+echo "####################################################"
+spoolMemoryGB=$(($limitQueryMemoryGB - 50 ))
+echo "Limitquery = $limitQueryMemoryGB"
+echo "####################################################"
+echo "SpoolMemorey = $spoolMemoryGB"
+else
+spoolMemoryGB=$(($limitQueryMemoryGB * 50 /100 ))
+echo "####################################################"
+echo "limitQueryMemoryGB lower then 128GB" 
+echo "Number of workers = $number_of_workers"
+echo "####################################################"
+echo "Limitquery = $limitQueryMemoryGB"
+echo "####################################################"
+echo "SpoolMemorey = $spoolMemoryGB"
+echo "####################################################"
+fi
 cudaMemQuota=$(cat /etc/sqream/sqream${i}_config.json | grep cudaMemQuota)
 for i in $(seq 1 ${number_of_workers}); do
 config_file="/etc/sqream/sqream${i}_config.json"
@@ -2859,19 +2989,29 @@ install_legacy
 ################################ default_limitQuery ###########################################################################################
 default_limitQuery () {
 logit "Started:  default_limitQuery"
-RAM_KB=$(grep MemTotal /proc/meminfo | awk '{print $2}')
-RAM_MB=$(expr $RAM_KB / 1024)
-GRAM_GB=$(expr $RAM_MB / 1024)
-if [ $GRAM_GB -ge 512 ] ;then
-RAM_GB=$(expr $GRAM_GB - 50)
-else
-RAM_GB=$(expr $RAM_MB / 1024)
-fi
-global_limitQueryMemoryGB=$((RAM_GB * 90 / 100 ))
+total_ram_meta
 number_of_workers=$(ls -dq /etc/sqream/*sqream*-service.conf | wc -l)
-limitQueryMemoryGB=$((global_limitQueryMemoryGB / number_of_workers))
-#spoolMemoryGB=$(($limitQueryMemoryGB * 80 / 100 ))
-spoolMemoryGB=$(($limitQueryMemoryGB - 10 ))
+limitQueryMemoryGB=$((AVAILABLE_RAM_GB / number_of_workers))
+if  [ $limitQueryMemoryGB -ge 128 ] ; then
+echo "####################################################"
+echo "limitQueryMemoryGB greater then 128GB"
+echo "Number of workers = $number_of_workers"
+echo "####################################################"
+spoolMemoryGB=$(($limitQueryMemoryGB - 50 ))
+echo "Limitquery = $limitQueryMemoryGB"
+echo "####################################################"
+echo "SpoolMemorey = $spoolMemoryGB"
+else
+spoolMemoryGB=$(($limitQueryMemoryGB * 50 /100 ))
+echo "####################################################"
+echo "limitQueryMemoryGB lower then 128GB" 
+echo "Number of workers = $number_of_workers"
+echo "####################################################"
+echo "Limitquery = $limitQueryMemoryGB"
+echo "####################################################"
+echo "SpoolMemorey = $spoolMemoryGB"
+echo "####################################################"
+fi
 cudaMemQuota=$(cat /etc/sqream/sqream${i}_config.json | grep cudaMemQuota)
 for i in $(seq 1 ${number_of_workers}); do
 config_file="/etc/sqream/sqream${i}_config.json"
@@ -2893,24 +3033,36 @@ fi
 }
 ########################## limitQuery no meta ###############################################################################################
 limitQuery_no_meta () {
-RAM_KB=$(grep MemTotal /proc/meminfo | awk '{print $2}')
-RAM_MB=$(expr $RAM_KB / 1024)
-GRAM_GB=$(expr $RAM_MB / 1024)
-if [ $GRAM_GB -ge 512 ] ;then
-RAM_GB=$(expr $GRAM_GB - 50)
-else
-RAM_GB=$(expr $RAM_MB / 1024)
-fi
-global_limitQueryMemoryGB=$((RAM_GB * 95 / 100 ))
+logit "Started limitQuery_no_meta"
+total_ram
 number_of_workers=$(ls -dq /etc/sqream/*sqream*-service.conf | wc -l)
-limitQueryMemoryGB=$((global_limitQueryMemoryGB / number_of_workers))
-spoolMemoryGB=$(($limitQueryMemoryGB - 10 ))
+limitQueryMemoryGB=$((AVAILABLE_RAM_GB / number_of_workers))
+if  [ $limitQueryMemoryGB -ge 128 ] ; then
+echo "####################################################"
+echo "limitQueryMemoryGB greater then 128GB"
+echo "Number of workers = $number_of_workers"
+echo "####################################################"
+spoolMemoryGB=$(($limitQueryMemoryGB - 50 ))
+echo "Limitquery = $limitQueryMemoryGB"
+echo "####################################################"
+echo "SpoolMemorey = $spoolMemoryGB"
+else
+spoolMemoryGB=$(($limitQueryMemoryGB * 50 /100 ))
+echo "####################################################"
+echo "limitQueryMemoryGB lower then 128GB" 
+echo "Number of workers = $number_of_workers"
+echo "####################################################"
+echo "Limitquery = $limitQueryMemoryGB"
+echo "####################################################"
+echo "SpoolMemorey = $spoolMemoryGB"
+echo "####################################################"
+fi
 cudaMemQuota=$(cat /etc/sqream/sqream${i}_config.json | grep cudaMemQuota)
 for i in $(seq 1 ${number_of_workers}); do
 config_file="/etc/sqream/sqream${i}_config.json"
 sed -i "s/\"limitQueryMemoryGB\": limitQueryMemoryGB,/\"limitQueryMemoryGB\": $limitQueryMemoryGB,/" "$config_file"       
 done
-logit "Success:  default_limitQuery"        
+logit "Success:  limitQuery_no_meta"        
 install_legacy
 } 
 ########################## check_if_sqreamdb_exist ##########################################################################################
@@ -2992,29 +3144,6 @@ logit "Success: permission_sqream"
 today=$(date +"%Y-%m-%d-%s")
 ###################################################### END ######################################################################################
 end () {
-whiptail --msgbox "+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
-     ##################     ################      #################     /##################      ###############      ###              ###
-    ###,                   ###(          (###    .##            ####    ###                     ###.         .###    #####           ####
-    ################       ###            ##(    ###            ###     ###                    ###            ###    ######.      .######
-     ##################   ###            ###     ##################    ###################     ###            ###   .##  ####   .###  ###
-                   ####   ###            ###    (###############.      ###                    /#################.   ###   ,###.###   /##
-                   ###    ###        ###(##.    ###      ####          ###                    ###            ###    ###     ####     ###
-  ###################     #################     ###        #####      ###################     ###            ###   /##               ##/
-                                      ###
-+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
-SQream Storage PATH = $cluster
-
-SQream Installation Completed to Start SQream copy the License file to /etc/sqream and then :
-
-+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
-
-sudo systemctl start metadataserver 
-sudo systemctl start serverpicker
-sudo systemctl start sqream1 and all the others
-                          
-                                
-+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++ 
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^" 30 180
 clear
 echo "
 ##################################################################################################
@@ -3059,28 +3188,6 @@ logit "Succes: : end_mig"
 }
 ############################################################### END With Monit #########################################################################################
 end_monit () {
-whiptail --msgbox "+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
-     ##################     ################      #################     /##################      ###############      ###              ###
-    ###,                   ###(          (###    .##            ####    ###                     ###.         .###    #####           ####
-    ################       ###            ##(    ###            ###     ###                    ###            ###    ######.      .######
-     ##################   ###            ###     ##################    ###################     ###            ###   .##  ####   .###  ###
-                   ####   ###            ###    (###############.      ###                    /#################.   ###   ,###.###   /##
-                   ###    ###        ###(##.    ###      ####          ###                    ###            ###    ###     ####     ###
-  ###################     #################     ###        #####      ###################     ###            ###   /##               ##/
-                                      ###
-+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
-SQream Storage PATH = $cluster
-
-SQream Installation Completed to Start SQream copy the License file to /etc/sqream and then :
-
-+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
-
-#sudo systemctl start monit 
-#sudo monit start all 
-#sudo monit status                               
-                                
-+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++ 
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^" 30 180
 clear
 echo "
 ##################################################################################################
@@ -3097,30 +3204,6 @@ logit "Success: Done installing SQreamDB with Monit"
 }
 ################################### END Pacemaker ########################################################################################################################
 end_pacemaker () {
-whiptail --msgbox "+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
-     ##################     ################      #################     /##################      ###############      ###              ###
-    ###,                   ###(          (###    .##            ####    ###                     ###.         .###    #####           ####
-    ################       ###            ##(    ###            ###     ###                    ###            ###    ######.      .######
-     ##################   ###            ###     ##################    ###################     ###            ###   .##  ####   .###  ###
-                   ####   ###            ###    (###############.      ###                    /#################.   ###   ,###.###   /##
-                   ###    ###        ###(##.    ###      ####          ###                    ###            ###    ###     ####     ###
-  ###################     #################     ###        #####      ###################     ###            ###   /##               ##/
-                                      ###
-+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
-SQream Storage PATH = $cluster
-
-SQream Installation Completed to Start SQream copy the License file to /etc/sqream and then :
-
-+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
-
-To start SQreamDB   >   sudo pcs cluster start $(hostname)
-
-For SQreamDB Status >   sudo pcs status
-
-To stop SQreamDB    >   sudo pcs cluster stop $(hostname)
-
-+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++ 
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^" 30 180
 clear
 echo "Please Wait while finishing configuration..."
 sudo pcs cluster stop $(hostname) > /dev/null
@@ -4820,7 +4903,7 @@ shift;
   sqream_mig_setup
   mig_service
   check_logfile
-  check_for_sqream_user   
+  check_for_sqream_user
   check_permissions_and_folders
   verify_and_extract_mig
   move_package
