@@ -4427,7 +4427,7 @@ do      printf 'Please insert METADATA HOST IP Address: '
         [ -z "$MD_HOST" ] && echo 'METADATA HOST IP Address cannot be empty; try again.'
 done
 cat <<EOF | tee /etc/sqream/cbo-client.conf > /dev/null
-JAVA_HOME=/home/sqream/jdk-17.0.10
+JAVA_HOME=$JAVA_HOME
 BINDIR=/usr/local/sqream/bin
 RUN_USER=sqream
 LOG_DIR=/var/log/sqream
@@ -4461,7 +4461,7 @@ echo "stay with current METADATA HOST IP Address: $MD_HOST"
 echo "##########################################################################################################################################"
 MD_HOST=$MD_HOST
 cat <<EOF | tee /etc/sqream/cbo-client.conf > /dev/null
-JAVA_HOME=/home/sqream/jdk-17.0.10
+JAVA_HOME=$JAVA_HOME
 BINDIR=/usr/local/sqream/bin
 RUN_USER=sqream
 LOG_DIR=/var/log/sqream
@@ -4490,7 +4490,7 @@ MD_SERVER_ADDR=$MD_HOST
 EOF
 ;;
 esac
-
+sudo chown -R sqream:sqream /etc/sqream
 sudo systemctl daemon-reload
 echo '
 check process cbo-backend with pidfile /var/run/cbo-backend.pid
