@@ -540,7 +540,7 @@ Documentation=http://docs.sqream.com/latest/manual/
 
 [Service]
 Type=simple
-EnvironmentFile=/etc/sqream/sqream1-service.conf
+EnvironmentFile=/etc/sqream/@sqreamX-service.conf@
 
 # RUN_USER, DIR, SERVICE_NAME, LOGFILE, CUDA_VISIBLE_DEVICES, NUMA_NODE come from the EnvironmentFile
 ExecStart=/bin/su - ${RUN_USER} -c 'export CUDA_VISIBLE_DEVICES=${CUDA_VISIBLE_DEVICES}; source /etc/sqream/sqream_env.sh && exec /usr/bin/numactl --cpunodebind=${NUMA_NODE} --membind=${NUMA_NODE} "${DIR}/bin/sqreamd" -config "/etc/sqream/${SERVICE_NAME}_config.json" &>> "${LOGFILE}"'
@@ -824,7 +824,7 @@ WantedBy=multi-user.target
 EOM
 sudo systemctl daemon-reload
 sudo systemctl enable sqream-mig-setup.service
-#sudo systemctl start sqream-mig-setup.service &> /dev/null
+sudo systemctl start sqream-mig-setup.service &> /dev/null
 logit "Success: mig_service"
 }
 ################################ re_meta_copy_files ############################################################################################
