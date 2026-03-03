@@ -4961,7 +4961,7 @@ shift;
   sudo systemctl start sqream-mig-setup.service
   sudo systemctl enable monit
   sudo systemctl start monit 
-  sudo monit reload &> /dev/null
+  sudo monit reload all &> /dev/null
   sudo monit stop all
   end_mig
   shift;
