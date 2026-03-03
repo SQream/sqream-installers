@@ -576,6 +576,7 @@ logit "Started: sqream_mig_setup"
 sudo rm -f /usr/lib/systemd/system/sqream*
 sudo rm -f /usr/lib/systemd/system/metadataserver.service
 sudo rm -f /usr/lib/systemd/system/serverpicker.service
+sudo rm -f /usr/lib/systemd/system/sqream-mig-setup.service
 sudo systemctl daemon-reload
 clear
 echo "##########################################################"
@@ -4961,6 +4962,7 @@ shift;
   sudo systemctl enable monit
   sudo systemctl start monit 
   sudo monit reload &> /dev/null
+  sudo monit stop all
   end_mig
   shift;
   ;; 
