@@ -573,6 +573,10 @@ logit "Success: permission_sqream"
 ############################# MIG Setup ############################################################################
 sqream_mig_setup(){
 logit "Started: sqream_mig_setup"
+sudo rm -f /usr/lib/systemd/system/sqream*
+sudo rm -f /usr/lib/systemd/system/metadataserver.service
+sudo rm -f /usr/lib/systemd/system/serverpicker.service
+sudo systemctl daemon-reload
 clear
 echo "##########################################################"
 echo "Welcome to SQreamDB with MIG Installation support"
