@@ -1,0 +1,22 @@
+/var/log/sqream/*.log {
+    daily
+    rotate 7
+    maxage 7
+
+    compress
+    delaycompress
+
+    missingok
+    notifempty
+
+    copytruncate
+
+    create 0644 sqream sqream
+    su sqream sqream
+
+    # Safety: ensure correct directory ownership
+    sharedscripts
+    postrotate
+        /usr/bin/chown -R sqream:sqream /var/log/sqream >/dev/null 2>&1 || true
+    endscript
+}

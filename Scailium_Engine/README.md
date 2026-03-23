@@ -41,6 +41,8 @@ SQream install option are:
 * -S, Summary Log File >  path: /tmp/sqreamdb-summary.log
 *  Displays configuration summary
 ---------------------------------------------------------------------------
+---------------------------------------------------------------------------
 
-  
+#LOGROTATE
+Copy scailium-services to /etc/logrotate.d/
 
