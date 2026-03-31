@@ -3482,6 +3482,7 @@ else
 mkdir -p /tmp/sqreampkg > /dev/null
 logit "Success: /tmp/sqreampkg created"
 tar -C /tmp/sqreampkg/ -zxf $TARFILE --checkpoint=.1000
+fi
 echo "#####################################################################################"
 if ! [ -d  /tmp/sqreampkg/python-module-service ]; 
 then
@@ -3498,7 +3499,6 @@ logit "Success: python-module-service found"
 fi
 echo " Done, Continue with Installation "
 echo "#####################################################################################"
-fi
 logit "Success: verify_and_extract"
 }
 ############################ Move SQream Package to Relevant Folders ###########################################################################
