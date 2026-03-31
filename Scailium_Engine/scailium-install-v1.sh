@@ -4598,7 +4598,7 @@ help ()
   echo "-cbo,                   Install Scailium CBO project"
   echo "                        example: sudo ./scailium-install-v1.sh -cbo "
   echo "---------------------------------------------------------------------------------------------------"
-  echo "-iceberg,               Install Scailium with iceberg support"
+  echo "-iceberg,               Install Scailium iceberg support"
   echo "                        example: sudo ./scailium-install-v1.sh -iceberg "
   echo "---------------------------------------------------------------------------------------------------"
   echo "-mig,                   Install Scailium with MIG support"
