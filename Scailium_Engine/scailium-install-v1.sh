@@ -4952,6 +4952,7 @@ shift;
 -cbo|--cbo_install)
   shift;
   cbo_installer
+  sudo monit stop all
   shift;
   ;; 
 -mig|--sqreamdb_with_mig_support)
