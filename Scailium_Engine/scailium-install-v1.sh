@@ -3483,6 +3483,19 @@ mkdir -p /tmp/sqreampkg > /dev/null
 logit "Success: /tmp/sqreampkg created"
 tar -C /tmp/sqreampkg/ -zxf $TARFILE --checkpoint=.1000
 echo "#####################################################################################"
+if ! [ -d  /tmp/sqreampkg/python-module-service ]; 
+then
+logit "Error: python-module-service not found"
+echo "####################################"
+echo "python-module-service not found"
+echo "####################################"
+else
+echo "####################################"
+echo "python-module-service found"
+echo "####################################"
+sudo mv /tmp/sqreampkg/python-module-service /home/sqream/
+logit "Success: python-module-service found"
+fi
 echo " Done, Continue with Installation "
 echo "#####################################################################################"
 fi
