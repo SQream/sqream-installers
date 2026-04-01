@@ -125,7 +125,85 @@ sudo subscription-manager repos --enable codeready-builder-for-rhel-9-x86_64-rpm
     exit 1
    fi
 }
-
+############################# limitQuery remig ###############################################################################################
+limitQuery_remig () {
+logit "Started limitQuery_remig"
+if [[ $new_limitQueryMemoryGB -ge 1 ]];then
+logit "Success : limitQuery remig check"
+custom_limitQuery
+else
+logit "Success : limitQuery_remig"
+default_limitQuery_remig
+fi
+}
+################################ default_limitQuery remig ####################################################################################
+default_limitQuery_remig () {
+logit "Started:  default_limitQuery_remig"
+total_ram_meta
+number_of_workers=$(nvidia-smi -L |grep MIG |wc -l)
+limitQueryMemoryGB=$((AVAILABLE_RAM_GB / number_of_workers))
+if  [ $limitQueryMemoryGB -ge 128 ] ; then
+echo "####################################################"
+echo "limitQueryMemoryGB greater then 128GB"
+echo "Number of workers = $number_of_workers"
+echo "####################################################"
+spoolMemoryGB=$(($limitQueryMemoryGB - 50 ))
+echo "Limitquery = $limitQueryMemoryGB"
+echo "####################################################"
+echo "SpoolMemorey = $spoolMemoryGB"
+else
+spoolMemoryGB=$(($limitQueryMemoryGB * 50 /100 ))
+echo "####################################################"
+echo "limitQueryMemoryGB lower then 128GB"
+echo "Number of workers = $number_of_workers"
+echo "####################################################"
+echo "Limitquery = $limitQueryMemoryGB"
+echo "####################################################"
+echo "SpoolMemorey = $spoolMemoryGB"
+echo "####################################################"
+fi
+#cudaMemQuota=$(cat /etc/sqream/sqream${i}_config.json | grep cudaMemQuota)
+for i in $(seq 1 ${number_of_workers}); do
+config_file="/etc/sqream/sqream${i}_config.json"
+sed -i "s/\"limitQueryMemoryGB\": limitQueryMemoryGB,/\"limitQueryMemoryGB\": $limitQueryMemoryGB,/" "$config_file"
+done
+logit "Success:  default_limitQuery_remig"
+install_legacy_mig
+}
+########################## limitQuery no meta remig #####################################################################################
+limitQuery_no_meta_remig () {
+logit "Started:  limitQuery_no_meta_remig"
+total_ram
+number_of_workers=$(ls -dq /etc/sqream/*sqream*-service.conf | wc -l)
+limitQueryMemoryGB=$((AVAILABLE_RAM_GB / number_of_workers))
+if  [ $limitQueryMemoryGB -ge 128 ] ; then
+echo "####################################################"
+echo "limitQueryMemoryGB greater then 128GB"
+echo "Number of workers = $number_of_workers"
+echo "####################################################"
+spoolMemoryGB=$(($limitQueryMemoryGB - 50 ))
+echo "Limitquery = $limitQueryMemoryGB"
+echo "####################################################"
+echo "SpoolMemorey = $spoolMemoryGB"
+else
+spoolMemoryGB=$(($limitQueryMemoryGB * 50 /100 ))
+echo "####################################################"
+echo "limitQueryMemoryGB lower then 128GB"
+echo "Number of workers = $number_of_workers"
+echo "####################################################"
+echo "Limitquery = $limitQueryMemoryGB"
+echo "####################################################"
+echo "SpoolMemorey = $spoolMemoryGB"
+echo "####################################################"
+fi
+#cudaMemQuota=$(cat /etc/sqream/sqream${i}_config.json | grep cudaMemQuota)
+for i in $(seq 1 ${number_of_workers}); do
+config_file="/etc/sqream/sqream${i}_config.json"
+sed -i "s/\"limitQueryMemoryGB\": limitQueryMemoryGB,/\"limitQueryMemoryGB\": $limitQueryMemoryGB,/" "$config_file"
+done
+logit "Success:  limitQuery_no_meta_remig"
+install_legacy_mig
+}
 #################################### advance_reconfiguration MIG ################################################################################
 advance_reconfiguration_mig () {
 logit "Started: advance_reconfiguration_mig"
