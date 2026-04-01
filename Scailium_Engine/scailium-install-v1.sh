@@ -1387,6 +1387,35 @@ EOF
 sudo cp /etc/monit.d/monitrc /etc/sqream
 logit "Success: Prepare monit Function"
 }
+###### check_monit_service_health no meta mig ##################################################################################
+check_monit_service_health_no_meta_mig () {
+logit "Started check_monit_service_health_no_meta_aws"
+if [ -f  /usr/lib/systemd/system/monit.service ] &> /dev/null
+then
+clear
+echo "###############################################################################"
+echo "Monit is installed."
+logit "Success: check_monit_service_health_no_meta_mig"
+monit_no_meta
+formula_advance_monit_mig
+echo "###############################################################################"
+sleep 2
+else
+clear
+echo "###############################################################################"
+echo "Monit is not installed."
+logit "Warnning: Monit is not installed Continue install without Monit"
+echo "###############################################################################"
+echo "Continue install without Monit"
+echo "###############################################################################"
+echo "You will need to start all SQream services manually"
+echo "###############################################################################"
+logit "Success: check_monit_service_health_no_meta_mig"
+sleep 2
+monit_backup
+formula_advance_monit_mig
+fi
+}
 ############## Monit No Meta ####################################################################################################################
 monit_no_meta () {
 logit "Started monit_no_meta"
