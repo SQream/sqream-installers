@@ -1307,18 +1307,22 @@ logit "Success: mig_service"
 }
 ################################ re_meta_copy_files ############################################################################################
 re_meta_copy_files() {
-  logit "Started metadata_copy_files"
+  logit "Started re_metadata_copy_files"
 sudo mv metadataserver.conf /etc/sqream
 sudo mv metadataserver.service /etc/sqream
 sudo mv metadataserver_config.json /etc/sqream 
 sudo mv  server_picker* /etc/sqream
 sudo mv  serverpicker* /etc/sqream
-sudo mv /etc/sqream/metadataserver.service /usr/lib/systemd/system/
-sudo mv /etc/sqream/serverpicker.service /usr/lib/systemd/system/
+sudo mv  sqream*_config.json /etc/sqream
+sudo mv  sqream*-service.conf /etc/sqream
+sudo mv  sqream*.service /etc/sqream
+sudo cp /etc/sqream/metadataserver.service /usr/lib/systemd/system
+sudo cp /etc/sqream/serverpicker.service /usr/lib/systemd/system
+sudo cp /etc/sqream/sqream*.service /usr/lib/systemd/system
 sudo chown -R sqream:sqream /usr/local/sqream
 sudo chown -R sqream:sqream /etc/sqream
 sudo systemctl daemon-reload
-logit "Success: metadata_copy_files"
+logit "Success: re_metadata_copy_files"
 }
 ############################################## Reconfig metadata_only ##########################################################################
 re_metadata_only () {
