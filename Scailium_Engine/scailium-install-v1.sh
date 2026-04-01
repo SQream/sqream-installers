@@ -125,6 +125,401 @@ sudo subscription-manager repos --enable codeready-builder-for-rhel-9-x86_64-rpm
     exit 1
    fi
 }
+
+#################################### advance_reconfiguration MIG ################################################################################
+advance_reconfiguration_mig () {
+logit "Started: advance_reconfiguration_mig"
+current_ip=$(cat /etc/sqream/sqream1_config.json | grep 'machineIP' | sed -e 's/.*://' | sed -e 's/[" ]*//' | sed -e 's/["],$//')
+clear
+echo "##########################################################################################################################################"
+echo "Your Current IP address is $current_ip"
+logit "Success: Your Current IP address is $current_ip"
+echo "##########################################################################################################################################"
+read -p "Do you want to change current IP ? (y/N) " yN
+echo "##########################################################################################################################################"
+case $yN in
+        y )
+hostip=$(hostname -I)
+echo "Please Enter Current Host IP Address, Select from below IP addresses list"
+echo "$hostip"
+echo "Please choose the relevant IP"
+echo "Or use 127.0.0.1 as local host"
+echo "##########################################################################################################################################"
+read machineip
+while [ -z "$machineip" ]
+do	printf 'Please Enter Current Host IP Address: '
+	read -r machineip
+	[ -z "$machineip" ] && echo 'MachineIP cannot be empty; try again.'
+done
+logit "Success: You choose this IP address $machineip"
+;;
+        * )
+echo "Stay with Current IP address is $current_ip"
+logit "Success: Stay with Current IP address is $current_ip"
+echo "##########################################################################################################################################"
+machineip=$current_ip
+;;
+esac
+echo "##########################################################################################################################################"
+current_cluster=$(cat /etc/sqream/sqream1_config.json | grep 'cluster' | sed -e 's/.*://' | sed -e 's/[" ]*//' | sed -e 's/["],$//')
+echo "Your Current Storage is $current_cluster"
+logit "Success: Your Current Storage is $current_cluster"
+echo "##########################################################################################################################################"
+read -p "Do you want to change current Storage Path ? (y/N) " yN
+echo "##########################################################################################################################################"
+case $yN in
+y)
+echo "Enter Your SQream Storage Path: "
+echo "##########################################################################################################################################"
+read cluster
+while [ -z "$cluster" ]
+do	printf 'Enter Your SQream Storage Path: '
+	read -r cluster
+	[ -z "$cluster" ] && echo 'SQream Storage Path cannot be empty; try again.'
+ done
+logit "Success: Your SQream Storage Path is: $cluster" 
+create_storage
+permission_sqream
+
+;;
+* )
+echo "Stay with Current Storage Path. "
+cluster=$current_cluster
+upgrade_storage
+logit "Success: Stay with Current Storage Path: $current_cluster  "
+;;
+esac
+echo "##########################################################################################################################################"
+current_metadata=$(cat /etc/sqream/sqream1_config.json | grep 'metadataServerIp' | sed -e 's/.*://' | sed -e 's/[" ]*//' | sed -e 's/["],$//')
+if [ $current_ip = $current_metadata ]; then
+echo "Currently Metadata server is local on this PC"
+fi
+echo "Current METADATA SERVER is $current_metadata"
+logit "Success: Current METADATA SERVER is $current_metadata"
+echo "##########################################################################################################################################"
+
+read -p "Do you want to change current METADATA SERVER service ? (y/N) " yN
+echo "##########################################################################################################################################"
+case $yN in
+y )
+echo "##########################################################################################################################################"
+echo "Please enter the METADATA SERVER IP Address"
+read metadataServerIp
+echo "##########################################################################################################################################"
+while [ -z "$metadataServerIp" ]
+do	printf 'Please Enter metadataServerIp IP Address: '
+	read -r metadataServerIp
+	[ -z "$metadataServerIp" ] && echo 'metadataServerIp cannot be empty; try again.'
+done
+echo "##########################################################################################################################################"
+if [ $machineip = $metadataServerIp ]; then
+echo "Metadata Service will be local"
+logit "Success: Metadata Server will be Local"
+sleep 2
+install_sqream_serverpicker_service 
+install_sqream_serverpicker
+create_service_config_template_file_mig
+install_sqream_services_mig
+check_monit_service_health_mig
+sudo rm -f /etc/sqream/sqream*_config.json
+sudo rm -f /etc/sqream/sqream*-service.conf
+sudo rm -f /etc/sqream/sqream*.service
+re_meta_copy_files
+sudo chown -R sqream:sqream /etc/sqream
+limitQuery_mig
+else 
+echo "This Server will be connected to METADATA SERVER $metadataServerIp"
+logit "Success: This Server will be connected to METADATA SERVER $metadataServerIp"
+sleep 2
+create_storage
+permission_sqream
+install_sqream_serverpicker_service 
+install_sqream_serverpicker
+create_service_config_template_file_mig
+install_sqream_services_mig
+check_monit_service_health_no_meta_mig
+sudo rm -f /etc/sqream/sqream*_config.json
+sudo rm -f /etc/sqream/sqream*-service.conf
+sudo rm -f /etc/sqream/sqream*.service
+re_meta_copy_files
+sudo chown -R sqream:sqream /etc/sqream
+limitQuery_no_meta_remig
+
+fi
+;;
+* )
+echo "Stay with Current Metadata Server"
+sleep 2
+if [ $machineip = $current_metadata ]; then
+metadataServerIp=$current_metadata
+logit "Success: Metadata Server will be Local"
+install_sqream_serverpicker_service 
+install_sqream_serverpicker
+create_service_config_template_file_mig
+install_sqream_services_mig
+check_monit_service_health_mig
+sudo rm -f /etc/sqream/sqream*_config.json
+sudo rm -f /etc/sqream/sqream*-service.conf
+sudo rm -f /etc/sqream/sqream*.service
+re_meta_copy_files
+sudo chown -R sqream:sqream /etc/sqream
+limitQuery_remig
+else 
+echo "This Server will be connected to METADATA SERVER $metadataServerIp"
+logit "Success: This Server will be connected to METADATA SERVER $metadataServerIp"
+sleep 2
+install_sqream_serverpicker_service 
+install_sqream_serverpicker
+create_service_config_template_file_mig
+install_sqream_services_mig
+check_monit_service_health_no_meta_mig
+sudo rm -f /etc/sqream/sqream*_config.json
+sudo rm -f /etc/sqream/sqream*-service.conf
+sudo rm -f /etc/sqream/sqream*.service
+re_meta_copy_files
+sudo chown -R sqream:sqream /etc/sqream
+limitQuery_no_meta_remig
+fi
+;;
+esac
+logit "Success advance reconfiguration_mig"
+}
+############################# MIG Reconfig #############################################
+sqream_mig_reconfigure(){
+logit "Started: scailium_mig_reconfigure"
+sudo nvidia-smi mig -dci && sudo nvidia-smi mig -dgi &> /dev/null
+clear
+echo "##########################################################"
+echo "Welcome to Scailium with MIG support reconfiguration"
+echo "##########################################################"
+echo "Please choose MIG PROFILE ID and MIG INSTANCES PER GPU"
+echo "##########################################################"
+sleep 3
+sudo nvidia-smi mig -lgip
+echo "Please enter MIG PROFILE ID:"
+read mipid
+echo "##########################################################"
+echo "Please enter MIG INSTANCES PER GPU:"
+read mipg
+echo "##########################################################"
+cat > /usr/local/sbin/sqream-mig-setup.sh << 'EOM'
+#!/bin/bash
+# sqream-mig-setup.sh
+#
+# Recreate MIG layout on all GPUs and regenerate /etc/sqream/sqreamN-service.conf
+# so that each SQream instance is bound to exactly one MIG slice with the correct
+# NUMA node, taken directly from `nvidia-smi topo -m`.
+
+set -euo pipefail
+
+CONF_DIR="/etc/sqream"
+# MIG 1g.20gb profile ID on A100 80GB (1g.20gb)
+MIG_PROFILE_ID=mig_pr_id         # MIG 1g.20gb profile ID on A100 80GB (1g.20gb)
+MIG_INSTANCES_PER_GPU=mig_in_per_gpu    # Number of MIG instances per GPU
+
+log()  { echo "[sqream-mig-setup] $*" >&2; }
+fail() { log "ERROR: $*"; exit 1; }
+
+# ---------- Helper: get NUMA node for a GPU index via topo ----------
+get_numa_node_for_gpu() {
+    local gpu_index="$1"
+    local numa
+
+    # Use the same logic you tested by hand, but filter to the specific GPU index
+    numa="$(nvidia-smi topo -m 2>/dev/null | awk -v idx="$gpu_index" '
+        NR > 1 && $1 ~ /^GPU[0-9]+$/ {
+            g = $1
+            sub("GPU", "", g)
+            if (g == idx) {
+                print $(NF-1)
+                exit
+            }
+        }')"
+
+    if [[ "$numa" =~ ^[0-9]+$ ]]; then
+        log "INFO: topo reports GPU ${gpu_index} NUMA node ${numa}"
+        echo "$numa"
+        return 0
+    fi
+
+    log "WARN: could not get NUMA node from topo for GPU ${gpu_index}, defaulting to 0 (got: '${numa}')"
+    echo "0"
+    return 0
+}
+
+# ---------- Helper: write one sqreamN-service.conf ----------
+write_sqream_conf() {
+    local conf_file="$1"      # /etc/sqream/sqreamN-service.conf
+    local mig_uuid="$2"
+    local numa_node="$3"
+
+    # Load existing values if present
+    local SERVICE_NAME RUN_USER DIR BINDIR LOGFILE
+    SERVICE_NAME=""
+    RUN_USER=""
+    DIR=""
+    BINDIR=""
+    LOGFILE=""
+
+    if [[ -f "$conf_file" ]]; then
+        # shellcheck source=/dev/null
+        source "$conf_file" || true
+    fi
+
+    # Derive SERVICE_NAME from filename if missing
+    if [[ -z "${SERVICE_NAME:-}" ]]; then
+        SERVICE_NAME="$(basename "$conf_file" | sed 's/-service\.conf$//')"
+    fi
+
+    # Sensible defaults if missing
+    RUN_USER="${RUN_USER:-sqream}"
+    DIR="${DIR:-/usr/local/sqream}"
+    BINDIR="${BINDIR:-/usr/local/sqream/bin/}"
+    LOGFILE="${LOGFILE:-/var/log/sqream/${SERVICE_NAME}.log}"
+
+    cat > "$conf_file" <<EOF
+SERVICE_NAME=${SERVICE_NAME}
+RUN_USER=${RUN_USER}
+DIR=${DIR}
+BINDIR=${BINDIR}
+LOGFILE=${LOGFILE}
+
+CUDA_VISIBLE_DEVICES=${mig_uuid}
+NUMA_NODE=${numa_node}
+EOF
+
+    log "Updated ${conf_file}: CUDA_VISIBLE_DEVICES=${mig_uuid}, NUMA_NODE=${numa_node}"
+}
+
+# ---------- 1. Discover GPUs ----------
+if ! command -v nvidia-smi >/dev/null 2>&1; then
+    fail "nvidia-smi not found in PATH"
+fi
+
+mapfile -t GPU_INDICES < <(nvidia-smi --query-gpu=index --format=csv,noheader 2>/dev/null)
+
+if [[ "${#GPU_INDICES[@]}" -eq 0 ]]; then
+    fail "No GPUs detected by nvidia-smi"
+fi
+
+log "Found GPUs: ${GPU_INDICES[*]}"
+
+# ---------- 2. Ensure MIG mode is enabled on all GPUs ----------
+for gpu in "${GPU_INDICES[@]}"; do
+    local_mode="$(nvidia-smi --query-gpu=mig.mode.current --format=csv,noheader -i "$gpu" 2>/dev/null | head -n1 || true)"
+
+    if [[ -z "$local_mode" ]]; then
+        log "WARN: Could not read mig.mode.current for GPU $gpu; assuming MIG mode is enabled because nvidia-smi shows MIG M. Enabled."
+        continue
+    fi
+
+    if [[ "$local_mode" != "Enabled" ]]; then
+        fail "GPU $gpu MIG mode is not Enabled (current: $local_mode). Enable once with 'nvidia-smi -i $gpu -mig 1' and reboot."
+    fi
+done
+
+# ---------- 3. Recreate MIG layout on all GPUs ----------
+for gpu in "${GPU_INDICES[@]}"; do
+    log "Cleaning existing MIG instances on GPU $gpu"
+    nvidia-smi mig -dci -i "$gpu" || true
+    nvidia-smi mig -dgi -i "$gpu" || true
+
+    # Build e.g. "15,15,15,15" list for -cgi
+    profile_list=""
+    for ((i=0; i< MIG_INSTANCES_PER_GPU; i++)); do
+        if [[ -z "$profile_list" ]]; then
+            profile_list="${MIG_PROFILE_ID}"
+        else
+            profile_list="${profile_list},${MIG_PROFILE_ID}"
+        fi
+    done
+
+    log "Creating ${MIG_INSTANCES_PER_GPU}x MIG profile ID ${MIG_PROFILE_ID} on GPU $gpu"
+    nvidia-smi mig -cgi "$profile_list" -C -i "$gpu"
+done
+
+# ---------- 4. Collect MIG UUIDs in (GPU, MIG) order ----------
+log "Collecting MIG UUIDs from nvidia-smi -L"
+
+# MIG_ENTRIES: each line is "<gpu_index> <MIG-UUID>"
+mapfile -t MIG_ENTRIES < <(
+    nvidia-smi -L | awk '
+        /^GPU [0-9]+:/ {
+            # Line looks like: "GPU 0: NVIDIA A100 ..."
+            # $1 = "GPU", $2 = "0:"
+            idx = $2
+            sub(":", "", idx)
+            gpu_index = idx
+        }
+        /^[[:space:]]+MIG/ {
+            # Indented MIG line, e.g.:
+            #   MIG 1g.20gb     Device  0: (UUID: MIG-xxxx)
+            if (match($0, /(MIG-[^ )]+)/, m)) {
+                print gpu_index, m[1]
+            }
+        }
+    '
+)
+
+if [[ "${#MIG_ENTRIES[@]}" -eq 0 ]]; then
+    fail "No MIG devices found after reconfiguration"
+fi
+
+log "Found MIG devices:"
+for line in "${MIG_ENTRIES[@]}"; do
+    log "  $line"
+done
+
+# ---------- 5. Build GPU→NUMA map using get_numa_node_for_gpu ----------
+declare -A GPU_NUMA
+for gpu in "${GPU_INDICES[@]}"; do
+    numa_node="$(get_numa_node_for_gpu "$gpu")"
+    GPU_NUMA["$gpu"]="$numa_node"
+done
+
+# Log the map
+for gpu in "${!GPU_NUMA[@]}"; do
+    log "GPU ${gpu} → NUMA node ${GPU_NUMA[$gpu]} (from topo)"
+done
+
+# ---------- 6. Get list of sqreamN-service.conf files ----------
+mapfile -t SQREAM_CONF_FILES < <(ls "${CONF_DIR}"/sqream*-service.conf 2>/dev/null | sort -V || true)
+
+if [[ "${#SQREAM_CONF_FILES[@]}" -eq 0 ]]; then
+    fail "No ${CONF_DIR}/sqream*-service.conf files found"
+fi
+
+TOTAL_MIG="${#MIG_ENTRIES[@]}"
+TOTAL_SERVICES="${#SQREAM_CONF_FILES[@]}"
+
+log "Total MIG devices: ${TOTAL_MIG}"
+log "Total SQream service configs: ${TOTAL_SERVICES}"
+
+if (( TOTAL_MIG < TOTAL_SERVICES )); then
+    fail "Not enough MIG devices (${TOTAL_MIG}) for ${TOTAL_SERVICES} service configs"
+fi
+
+# ---------- 7. Assign MIGs to service configs ----------
+log "Assigning MIG devices to SQream service configs"
+
+for ((i=0; i< TOTAL_SERVICES; i++)); do
+    conf_file="${SQREAM_CONF_FILES[$i]}"
+    entry="${MIG_ENTRIES[$i]}"
+
+    gpu_index="$(awk '{print $1}' <<< "$entry")"
+    mig_uuid="$(awk '{print $2}' <<< "$entry")"
+    numa_node="${GPU_NUMA[$gpu_index]:-0}"
+
+    write_sqream_conf "$conf_file" "$mig_uuid" "$numa_node"
+done
+
+log "MIG + SQream configuration completed successfully."
+EOM
+sudo sed -i "s/^MIG_PROFILE_ID=.*/MIG_PROFILE_ID=$mipid/" /usr/local/sbin/sqream-mig-setup.sh
+sudo sed -i "s/^MIG_INSTANCES_PER_GPU=.*/MIG_INSTANCES_PER_GPU=$mipg/" /usr/local/sbin/sqream-mig-setup.sh
+sudo chmod +x /usr/local/sbin/sqream-mig-setup.sh
+logit "Success: scailium_mig_reconfigure"
+}
 #################################### Function advance_configuration ############################################################################
 advance_configuration_mig () {
 logit "Started: advance_configuration_mig"
@@ -4991,7 +5386,34 @@ shift;
   iceberg_monit
   shift;
   ;;  
-  
+-remig|--reconfigure_mig_support)
+  shift;
+  run_with_sudo
+  check_for_sqream_user  
+  sqream_temp
+  check_logfile  
+  etc_backup
+  mkdir sqream-temp 
+  cd sqream-temp
+  install_metadata_service
+  install_metadata_config_json
+  sudo rm -f /usr/local/sbin/sqream-mig-setup.sh
+  sudo rm -f /usr/lib/systemd/system/sqream-mig-setup.service
+  sudo systemctl daemon-reload
+  sqream_mig_reconfigure
+  mig_service
+  sudo systemctl daemon-reload
+  sudo systemctl start sqream-mig-setup.service
+  advance_reconfiguration_mig
+  cd .. 
+  sudo rm -rf sqream-temp
+  sudo systemctl daemon-reload
+  sudo systemctl start sqream-mig-setup.service
+  sudo monit reload all &> /dev/null
+  sudo monit stop all   
+  end_mig
+  shift;
+  ;;
   *)
   echo "unrecognised option: $1"
   help
